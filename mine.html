@@ -1,0 +1,2059 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Minecraft HTML Edition</title>
+<style>
+@font-face {
+  font-family: 'Press Start 2P';
+  src: url('./PressStart2P-Regular.ttf') format('truetype');
+  font-display: swap;
+}
+  html, body {
+    margin: 0; padding: 0; overflow: hidden; height: 100dvh;
+    background: #000; font-family: 'Press Start 2P', monospace;
+    user-select: none; -webkit-user-select: none;
+    -webkit-touch-callout: none; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    color: #fff;
+  }
+  canvas { display: block; touch-action: none; }
+
+  /* ===== UI СЛОИ ===== */
+  #ui-layer {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; flex-direction: column;
+    image-rendering: pixelated;
+    background: #3b2a1a;
+    overflow-y: auto;
+    height: 100dvh;
+  }
+  #ui-layer.hidden { display: none; }
+
+  #pause-layer {
+    position: fixed; inset: 0; z-index: 900;
+    background: rgba(0, 0, 0, 0.6);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  #pause-layer.active { display: flex; }
+
+  #death-screen {
+    position: fixed; inset: 0; z-index: 3000;
+    background: rgba(80, 0, 0, 0.7);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+  }
+  #death-screen.active { display: flex; }
+
+  #ad-modal {
+    position: fixed; inset: 0; z-index: 4000; background: rgba(0,0,0,0.8);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+  }
+  #ad-modal.active { display: flex; }
+
+  .screen {
+    display: none; flex-direction: column; align-items: center;
+    width: 100%; min-height: 100%;
+    padding: 20px 20px 120px 20px;
+    box-sizing: border-box; overflow-y: auto;
+  }
+  .screen.active { display: flex; }
+  .screen-inner {
+    display: flex; flex-direction: column; align-items: center;
+    width: 100%; max-width: 500px; margin: auto;
+  }
+
+  /* ===== СТИЛИ ===== */
+  #screen-main .logo {
+    font-size: 48px; color: #fff; text-shadow: 4px 4px 0 #3f3f3f;
+    letter-spacing: 6px; margin-bottom: 20px; text-align: center;
+    white-space: nowrap;
+  }
+  #screen-main .splash {
+    position: relative; color: #ffff00; font-size: 14px;
+    text-shadow: 2px 2px 0 #3f3f00; transform: rotate(-15deg);
+    margin-top: -20px; margin-bottom: 20px; align-self: flex-end; margin-right: 20%;
+    animation: pulse 0.8s infinite alternate;
+  }
+  @keyframes pulse { from { transform: rotate(-15deg) scale(1); } to { transform: rotate(-15deg) scale(1.1); } }
+
+  .title { font-size: 24px; margin-bottom: 20px; text-shadow: 2px 2px 0 #3f3f3f; text-align: center; flex-shrink: 0; }
+  .death-title { font-size: 36px; color: #fff; text-shadow: 4px 4px 0 #3f3f3f; margin-bottom: 30px; }
+
+  .mc-btn {
+    width: 100%; max-width: 400px; height: 40px; margin: 4px;
+    background: #727272; border: 2px solid #000;
+    box-shadow: inset 2px 2px 0 #a0a0a0, inset -2px -2px 0 #3f3f3f;
+    color: #fff; text-shadow: 2px 2px 0 #3f3f3f;
+    font-family: 'Press Start 2P', monospace; font-size: 11px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s;
+    white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+    flex-shrink: 0;
+  }
+  .mc-btn:hover { background: #7a7a8c; border-color: #fff; }
+  .mc-btn:active { box-shadow: inset -2px -2px 0 #a0a0a0, inset 2px 2px 0 #3f3f3f; }
+  .mc-btn:disabled { color: #a0a0a0; background: #3f3f3f; cursor: not-allowed; border-color: #000; box-shadow: none; }
+
+  .btn-col { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 400px; flex-shrink: 0; }
+  .btn-row { display: flex; width: 100%; max-width: 500px; justify-content: center; gap: 6px; margin-top: 10px; flex-shrink: 0; }
+
+  .row-2 .mc-btn { flex: 1; font-size: 10px; }
+  .row-4 .mc-btn { flex: 1; font-size: 9px; }
+
+  .mc-input {
+    width: 100%; max-width: 400px; height: 30px; margin: 5px 0;
+    background: #000; border: 2px solid #aaa; color: #fff;
+    font-family: 'Press Start 2P', monospace; font-size: 12px; padding: 0 10px;
+    outline: none; box-sizing: border-box; flex-shrink: 0;
+  }
+
+  /* ===== СПИСОК МИРОВ ===== */
+  .world-list-container {
+    width: 100%; max-width: 500px;
+    flex-grow: 1;
+    min-height: 150px;
+    background: rgba(0,0,0,0.5); border: 2px solid #000;
+    overflow-y: auto; margin-bottom: 10px; padding: 5px; box-sizing: border-box;
+    flex-shrink: 0;
+  }
+  .world-item {
+    display: flex; align-items: center; gap: 10px; padding: 5px;
+    border: 2px solid transparent; cursor: pointer;
+    height: 60px; box-sizing: border-box;
+  }
+  .world-item:hover { background: rgba(255,255,255,0.1); }
+  .world-item.selected { border-color: #fff; background: rgba(255,255,255,0.2); }
+
+  .world-preview {
+    width: 50px; height: 50px; border: 2px solid #000;
+    flex-shrink: 0; position: relative; overflow: hidden;
+    background: #444;
+  }
+  .world-preview canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+
+  .world-info { flex-grow: 1; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+  .world-name { font-size: 12px; color: #fff; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+  .world-meta { font-size: 8px; color: #aaa; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .world-mode { color: #aaa; font-size: 8px; margin-top: 2px; }
+
+  /* ===== НАСТРОЙКИ ===== */
+  .settings-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    width: 100%; max-width: 500px; margin-bottom: 20px; flex-shrink: 0;
+  }
+  .setting-item {
+    background: #000; border: 2px solid #aaa; padding: 5px;
+    display: flex; flex-direction: column; justify-content: center;
+    height: 40px; box-sizing: border-box; cursor: pointer; position: relative;
+  }
+  .setting-item:hover { border-color: #fff; }
+  .setting-label { font-size: 10px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .setting-item.cycle-btn { align-items: flex-start; }
+  .setting-item.cycle-btn .setting-label { color: #fff; }
+
+  input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; margin-top: 5px; }
+  input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; background: #555; border: 1px solid #000; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 8px; background: #aaa; border: 1px solid #000; margin-top: -6px; cursor: pointer; }
+  input[type=range]:hover::-webkit-slider-thumb { background: #fff; }
+
+  /* ===== ИНВЕНТАРЬ ===== */
+  #inventory-screen, #survival-inventory {
+    display: none; position: fixed; inset: 0; z-index: 2000;
+    background: rgba(0,0,0,0.5); flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  #inventory-screen.active, #survival-inventory.active { display: flex; }
+
+  .inv-panel, .surv-panel {
+    width: 95%; max-width: 600px; max-height: 90dvh;
+    background: #c6c6c6; border: 4px solid #fff; border-bottom-color: #555; border-right-color: #555;
+    display: flex; flex-direction: column; padding: 15px; box-sizing: border-box;
+    color: #3f3f3f; position: relative;
+  }
+
+  .close-btn {
+    position: absolute; top: 10px; right: 10px;
+    width: 36px; height: 36px;
+    background: #ff5555; border: 2px solid #000;
+    box-shadow: inset 2px 2px 0 #ff8888, inset -2px -2px 0 #880000;
+    color: #fff; font-size: 18px; font-family: 'Press Start 2P';
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .close-btn:active { box-shadow: inset -2px -2px 0 #ff8888, inset 2px 2px 0 #880000; }
+
+  .inv-title { font-size: 14px; margin-bottom: 15px; text-shadow: 1px 1px 0 #fff; text-align: center; padding-right: 30px; padding-left: 30px; }
+
+  .inv-grid-container {
+    flex-grow: 1; overflow-y: auto; background: #8b8b8b; border: 2px solid #373737;
+    padding: 5px; margin-bottom: 15px; min-height: 100px;
+  }
+  .inv-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 2px; }
+  .inv-item, .surv-slot {
+    aspect-ratio: 1; background: #8b8b8b; border: 2px solid #fff; border-bottom-color: #373737; border-right-color: #373737;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative;
+  }
+  .inv-item:hover, .surv-slot:hover { background: #c6c6c6; border-color: #fff; }
+  .inv-item img, .surv-slot img { width: 80%; height: 80%; image-rendering: pixelated; pointer-events: none; }
+
+  .inv-hotbar { display: flex; gap: 2px; justify-content: center; flex-shrink: 0; }
+  .inv-hotbar .slot {
+    width: 40px; height: 40px; background: #8b8b8b; border: 2px solid #373737; border-bottom-color: #fff; border-right-color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative;
+  }
+  .inv-hotbar .slot.active { border-color: #fff; box-shadow: 0 0 0 2px #fff inset; }
+  .inv-hotbar .slot img { width: 30px; height: 30px; image-rendering: pixelated; }
+
+  .surv-preview-container { height: 70px; display: flex; justify-content: center; align-items: center; margin-bottom: 5px; flex-shrink: 0; }
+  .surv-preview-container canvas { height: 60px; width: auto; aspect-ratio: 2/3; image-rendering: pixelated; }
+
+  .surv-storage-grid {
+    display: grid; grid-template-columns: repeat(9, 1fr); gap: 2px;
+    background: #8b8b8b; padding: 5px; border: 2px solid #373737;
+    margin-bottom: 10px; overflow: hidden; flex-grow: 0; flex-shrink: 1;
+  }
+
+  .surv-slot {
+    max-width: 42px; max-height: 42px; width: 100%; height: 100%; margin: auto;
+  }
+
+  .tooltip {
+    position: fixed; z-index: 3000; background: rgba(16,0,16,0.94);
+    border: 2px solid #25005a; padding: 5px 10px; pointer-events: none;
+    color: #fff; font-size: 10px; text-shadow: 1px 1px 0 #3f3f3f; display: none;
+  }
+
+  /* ===== ОТЛАДОЧНАЯ ПАНЕЛЬ F3 ===== */
+  #debug-panel {
+    position: fixed; top: 10px; left: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff; font-family: monospace; font-size: 12px;
+    padding: 5px 10px; z-index: 3000;
+    pointer-events: none;
+    white-space: pre;
+    display: none;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  /* ===== ИГРОВОЙ HUD ===== */
+  #game-ui { display: none; position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%, -50%); }
+  #crosshair::before, #crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 2px #000; }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+
+  #survival-hud { position: absolute; bottom: 66px; left: 50%; transform: translateX(-50%); width: 440px; display: flex; justify-content: space-between; pointer-events: none; }
+  .hud-group { display: flex; gap: 1px; }
+  .hud-icon { width: 18px; height: 18px; background-size: contain; background-repeat: no-repeat; image-rendering: pixelated; }
+
+  #bottom-ui {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    pointer-events: none; z-index: 100;
+  }
+
+  #hotbar-container {
+    position: relative; display: flex; gap: 2px; padding: 2px;
+    background: rgba(0,0,0,.5); border: 2px solid #555; pointer-events: auto;
+    max-width: 90vw; overflow: hidden;
+  }
+  .slot {
+    width: 42px; height: 42px;
+    position: relative; border: 2px solid #8b8b8b;
+    background: rgba(139,139,139,.3); display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .slot.active { border-color: #fff; box-shadow: 0 0 0 2px #fff inset; }
+  .slot img { width: 30px; height: 30px; image-rendering: pixelated; pointer-events: none; }
+  .count { position: absolute; bottom: 2px; right: 2px; font-size: 10px; color: #fff; text-shadow: 2px 2px 0 #000; pointer-events: none; }
+
+  #btn-inventory {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    background: rgba(111,111,111,0.8);
+    border: 2px solid #000;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 24px;
+    pointer-events: auto;
+    display: none;
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+    font-weight: bold;
+  }
+  body.touch #btn-inventory { display: flex; }
+
+  #hand-visual { position: absolute; bottom: -20px; right: 8vw; width: 80px; height: 120px; pointer-events: none; transform: rotate(-15deg); }
+
+  #touch-controls { display: none; position: absolute; inset: 0; pointer-events: none; }
+  body.touch #touch-controls { display: block; }
+  #joystick { position: absolute; bottom: 80px; left: 24px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.4); pointer-events: auto; z-index: 90; }
+  #joystick-knob { position: absolute; left: 50%; top: 50%; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.4); transform: translate(-50%, -50%); }
+
+  #action-buttons {
+    position: absolute; bottom: 80px; right: 24px;
+    display: grid; grid-template-columns: 65px 65px; grid-template-rows: 65px 65px;
+    gap: 10px; pointer-events: auto; z-index: 90;
+  }
+  #action-buttons button {
+    width: 65px; height: 65px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.15);
+    color: #fff; font-size: 22px; font-family: 'Press Start 2P';
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  #btn-place { grid-column: 1; grid-row: 1; }
+  #btn-jump  { grid-column: 2; grid-row: 1; }
+  #btn-break { grid-column: 1; grid-row: 2; }
+  #btn-down  { grid-column: 2; grid-row: 2; }
+
+  #btn-pause { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; background: #6f6f6f; border: 2px solid #000; color: #fff; font-size: 16px; pointer-events: auto; display: none; z-index: 100; }
+  body.touch #btn-pause { display: block; }
+
+  #btn-camera { position: absolute; top: 10px; left: 10px; width: 40px; height: 40px; background: #6f6f6f; border: 2px solid #000; color: #fff; font-size: 16px; pointer-events: auto; display: none; z-index: 100; }
+  body.touch #btn-camera { display: block; }
+
+  @media (max-height: 500px) {
+    #joystick { bottom: 50px; width: 90px; height: 90px; left: 16px; }
+    #joystick-knob { width: 40px; height: 40px; }
+
+    #action-buttons {
+      bottom: 50px; right: 16px;
+      grid-template-columns: 55px 55px; grid-template-rows: 55px 55px;
+      gap: 8px;
+    }
+    #action-buttons button { width: 55px; height: 55px; font-size: 18px; }
+
+    #bottom-ui { bottom: 5px; gap: 6px; }
+    .slot { width: 34px; height: 34px; }
+    .slot img { width: 24px; height: 24px; }
+    #btn-inventory { width: 36px; height: 36px; font-size: 18px; }
+    #survival-hud { bottom: 45px; width: 320px; }
+
+    .logo { font-size: 24px; }
+    .world-list-container { min-height: 100px; flex-grow: 1; }
+    .mc-btn { height: 34px; font-size: 9px; }
+    .btn-row { margin-top: 5px; }
+    .screen { padding: 10px 20px 80px 20px; }
+
+    .surv-preview-container { height: 45px; }
+    .surv-preview-container canvas { height: 40px; }
+    .surv-slot { max-width: 32px; max-height: 32px; }
+  }
+
+  @media (max-width: 600px) {
+    .row-4 { flex-wrap: wrap; }
+    .row-4 .mc-btn { flex: 1 1 45%; margin: 2px; }
+    .row-2 { flex-wrap: wrap; }
+    .row-2 .mc-btn { flex: 1 1 100%; margin: 2px; }
+
+    #screen-main .logo { font-size: 32px; letter-spacing: 2px; }
+    #screen-main .splash { font-size: 10px; margin-right: 5%; }
+    .title { font-size: 18px; }
+
+    .settings-grid { grid-template-columns: 1fr; gap: 5px; }
+    .world-list-container { min-height: 200px; }
+    .inv-panel, .surv-panel { padding: 10px; }
+    .inv-grid { grid-template-columns: repeat(5, 1fr); }
+  }
+
+  #toast-container { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 5000; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .toast { background: rgba(0,0,0,0.8); border: 2px solid #fff; color: #fff; padding: 10px 20px; font-size: 10px; animation: fadeInOut 3s forwards; }
+  @keyframes fadeInOut { 0% { opacity: 0; } 10% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<!-- МЕНЮ -->
+<div id="ui-layer">
+  <div id="screen-main" class="screen active">
+    <div class="screen-inner" style="justify-content: center; min-height: 100%;">
+      <div class="logo">MINECRAFT</div>
+      <div class="splash">Тоже HTML!</div>
+      <div class="btn-col">
+        <button class="mc-btn" onclick="showScreen('screen-select')">Одиночная игра</button>
+        <button class="mc-btn" onclick="showScreen('screen-skins')">Скины</button>
+        <button class="mc-btn" onclick="openSettings()">Настройки...</button>
+        <button class="mc-btn" onclick="location.reload()">Выйти из игры</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-select" class="screen">
+    <div class="screen-inner">
+      <div class="title">Выбрать мир</div>
+      <div class="world-list-container" id="world-list"></div>
+      <div class="btn-row row-2">
+        <button class="mc-btn" id="btn-play-world" onclick="playSelectedWorld()" disabled>Играть в выбранном мире</button>
+        <button class="mc-btn" onclick="showScreen('screen-create')">Создать новый мир</button>
+      </div>
+      <div class="btn-row row-4">
+        <button class="mc-btn" id="btn-rename-world" onclick="renameSelectedWorld()" disabled>Переименовать</button>
+        <button class="mc-btn" id="btn-recreate-world" onclick="recreateSelectedWorld()" disabled>Пересоздать</button>
+        <button class="mc-btn" id="btn-delete-world" onclick="deleteSelectedWorld()" disabled>Удалить</button>
+        <button class="mc-btn" onclick="showScreen('screen-main')">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-create" class="screen">
+    <div class="screen-inner">
+      <div class="title">Создание мира</div>
+      <div style="width: 100%; max-width: 400px; font-size:12px; margin-bottom: 5px;">Название мира</div>
+      <input type="text" id="input-name" class="mc-input" value="Новый мир" maxlength="30">
+
+      <button class="mc-btn" id="btn-mode-cycle" onclick="cycleCreateMode()" style="margin-top: 15px; max-width: 400px;">Режим игры: Творческий</button>
+      <button class="mc-btn" id="btn-worldtype-cycle" onclick="cycleWorldType()" style="margin-top: 15px; max-width: 400px;">Тип мира: Обычный</button>
+
+      <div style="width: 100%; max-width: 400px; font-size:12px; margin: 15px 0 5px;">Сид (Seed)</div>
+      <input type="text" id="input-seed" class="mc-input" placeholder="Оставьте пустым для случайного">
+      <div class="btn-row row-2" style="max-width: 400px; margin-top:20px;">
+        <button class="mc-btn" onclick="createNewWorld()">Создать</button>
+        <button class="mc-btn" onclick="showScreen('screen-select')">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-settings" class="screen">
+    <div class="screen-inner">
+      <div class="title">Параметры</div>
+      <div class="settings-grid">
+        <div class="setting-item">
+          <div class="setting-label">Музыка: <span id="val-music">100</span>%</div>
+          <input type="range" id="set-music" min="0" max="100" value="100" oninput="document.getElementById('val-music').textContent = this.value">
+        </div>
+        <div class="setting-item">
+          <div class="setting-label">Звуки: <span id="val-sound">100</span>%</div>
+          <input type="range" id="set-sound" min="0" max="100" value="100" oninput="document.getElementById('val-sound').textContent = this.value">
+        </div>
+        <div class="setting-item cycle-btn" onclick="toggleInvertMouse()">
+          <div class="setting-label" id="lbl-invert">Инверсия мыши: ВЫКЛ</div>
+        </div>
+        <div class="setting-item">
+          <div class="setting-label">Чувствительность: <span id="val-sens">100</span>%</div>
+          <input type="range" id="set-sens" min="10" max="200" value="100" oninput="document.getElementById('val-sens').textContent = this.value">
+        </div>
+        <div class="setting-item">
+          <div class="setting-label">Поле зрения: <span id="val-fov">Нормально</span></div>
+          <input type="range" id="set-fov" min="30" max="110" value="70" oninput="updateFovLabel(this.value)">
+        </div>
+        <div class="setting-item cycle-btn" onclick="cycleDifficulty()">
+          <div class="setting-label" id="lbl-diff">Сложность: Нормальная</div>
+        </div>
+        <div class="setting-item" style="grid-column: span 2;">
+          <div class="setting-label">Дальность прорисовки: <span id="val-render">5</span> чанков</div>
+          <input type="range" id="set-render" min="2" max="10" value="5" oninput="document.getElementById('val-render').textContent = this.value">
+        </div>
+      </div>
+      <div class="btn-col" style="max-width: 400px;">
+        <button class="mc-btn" onclick="showToast('Настройки графики в разработке')">Настройки графики...</button>
+        <button class="mc-btn" onclick="showToast('Управление в разработке')">Управление...</button>
+        <button class="mc-btn" onclick="saveAndCloseSettings()">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="screen-skins" class="screen">
+    <div class="screen-inner">
+      <div class="title">Скины</div>
+      <div class="settings-grid" id="skin-list" style="grid-template-columns: repeat(2, 1fr); max-width: 500px; gap: 15px;"></div>
+      <div class="btn-col" style="max-width: 400px;">
+        <button class="mc-btn" onclick="showScreen('screen-main')">Назад</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- МОДАЛКА РЕКЛАМЫ -->
+<div id="ad-modal">
+  <div class="title" style="margin-bottom: 10px;">[МОК] Реклама</div>
+  <div style="font-size: 12px; margin-bottom: 20px; text-align: center;">Посмотреть рекламу для разблокировки?</div>
+  <div class="btn-col" style="max-width: 300px;">
+    <button class="mc-btn" id="btn-ad-yes" onclick="confirmAd()">Да, смотреть</button>
+    <button class="mc-btn" onclick="closeAd()">Отмена</button>
+  </div>
+</div>
+
+<!-- МЕНЮ ПАУЗЫ -->
+<div id="pause-layer">
+  <div class="title">Меню игры</div>
+  <div class="btn-col" style="max-width: 400px;">
+    <button class="mc-btn" onclick="resumeGame()">Вернуться к игре</button>
+    <button class="mc-btn" onclick="showScreen('screen-skins')">Скины</button>
+    <button class="mc-btn" onclick="openSettings()">Настройки...</button>
+    <button class="mc-btn" id="btn-debug-toggle" onclick="toggleDebug()" style="display:none;">Отладка: ВЫКЛ</button>
+    <button class="mc-btn" onclick="saveAndQuitGame()">Сохранить и выйти в меню</button>
+  </div>
+</div>
+
+<!-- ЭКРАН СМЕРТИ -->
+<div id="death-screen">
+  <div class="death-title">Ты погиб!</div>
+  <button class="mc-btn" onclick="respawnPlayer()">Возродиться</button>
+</div>
+
+<!-- ИГРА -->
+<div id="game-ui">
+  <div id="crosshair"></div>
+
+  <div id="debug-panel"></div>
+
+  <div id="survival-hud">
+    <div class="hud-group" id="hud-hearts"></div>
+    <div class="hud-group" id="hud-food"></div>
+  </div>
+
+  <div id="touch-controls">
+    <div id="joystick"><div id="joystick-knob"></div></div>
+    <div id="action-buttons">
+      <button id="btn-place">▦</button>
+      <button id="btn-jump">▲</button>
+      <button id="btn-break">⛏</button>
+      <button id="btn-down">▼</button>
+    </div>
+  </div>
+
+  <div id="hand-visual"></div>
+
+  <div id="bottom-ui">
+    <div id="hotbar-container"></div>
+    <button id="btn-inventory">⋮</button>
+  </div>
+
+  <button id="btn-pause">⏸</button>
+  <button id="btn-camera">👁</button>
+</div>
+
+<!-- ИНВЕНТАРЬ (КРЕАТИВ) -->
+<div id="inventory-screen">
+  <div class="inv-panel">
+    <button class="close-btn" onclick="toggleInventory()">X</button>
+    <div class="inv-title">Выбор блока</div>
+    <div class="inv-grid-container">
+      <div class="inv-grid" id="inv-grid"></div>
+    </div>
+    <div class="inv-hotbar" id="inv-hotbar"></div>
+  </div>
+</div>
+
+<!-- ИНВЕНТАРЬ (ВЫЖИВАНИЕ) -->
+<div id="survival-inventory">
+  <div class="surv-panel">
+    <button class="close-btn" onclick="toggleInventory()">X</button>
+    <div class="surv-preview-container">
+      <canvas id="surv-preview-canvas" width="80" height="120"></canvas>
+    </div>
+    <div class="surv-storage-grid" id="surv-storage"></div>
+    <div class="inv-hotbar" id="surv-hotbar"></div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+<div id="toast-container"></div>
+
+<script type="importmap">
+{ "imports": { "three": "./three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || matchMedia('(pointer: coarse)').matches;
+document.body.classList.toggle('touch', isTouch);
+
+/* ============================================================
+   ИНИЦИАЛИЗАЦИЯ НАСТРОЕК
+   ============================================================ */
+let savedSettings = {};
+try { savedSettings = JSON.parse(localStorage.getItem('mc_settings')) || {}; } catch(e) {}
+
+const SETTINGS = {
+  sens: savedSettings.sens ?? 100,
+  fov: savedSettings.fov ?? 70,
+  invertY: savedSettings.invertY ?? false,
+  difficulty: savedSettings.difficulty ?? 'Нормальная',
+  renderDist: savedSettings.renderDist ?? 5
+};
+
+let PROFILE = { unlockedSkins: ['steve'], currentSkin: 'steve' };
+try {
+  const stored = localStorage.getItem('mc_profile');
+  if (stored) {
+    const parsed = JSON.parse(stored);
+    if (parsed && typeof parsed === 'object') PROFILE = parsed;
+  }
+} catch(e) {
+  console.warn('mc_profile повреждён, использую настройки по умолчанию', e);
+}
+
+/* ============================================================
+   ПОЛНОЭКРАННЫЙ РЕЖИМ И ОТЛАДКА
+   ============================================================ */
+function requestFullscreen() {
+  const elem = document.documentElement;
+  if (elem.requestFullscreen) { elem.requestFullscreen().catch((err) => { console.log(`Error: ${err.message}`); }); }
+  else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); }
+  else if (elem.msRequestFullscreen) { elem.msRequestFullscreen(); }
+}
+document.body.addEventListener('touchstart', requestFullscreen, { once: true });
+document.body.addEventListener('click', requestFullscreen, { once: true });
+
+let showDebug = false;
+window.toggleDebug = () => {
+  showDebug = !showDebug;
+  document.getElementById('debug-panel').style.display = showDebug ? 'block' : 'none';
+  const btn = document.getElementById('btn-debug-toggle');
+  if (btn) btn.textContent = `Отладка: ${showDebug ? 'ВКЛ' : 'ВЫКЛ'}`;
+};
+if (isTouch) {
+  const btn = document.getElementById('btn-debug-toggle');
+  if (btn) btn.style.display = 'block';
+}
+
+
+/* ============================================================
+   ГЕНЕРАЦИЯ ФОНА
+   ============================================================ */
+(function makeDirtBg() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(64, 64);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const shade = 120 + Math.random() * 40;
+    img.data[i] = shade + 20; img.data[i+1] = shade - 20; img.data[i+2] = shade - 40; img.data[i+3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  document.getElementById('ui-layer').style.backgroundImage = `url(${c.toDataURL()})`;
+})();
+
+/* ============================================================
+   БЛОКИ И ПРЕДМЕТЫ
+   ============================================================ */
+const BLOCKS = {
+  1: { name: 'Трава', tiles: { top: 0, side: 1, bottom: 2 } },
+  2: { name: 'Земля', tiles: { all: 2 } },
+  3: { name: 'Камень', tiles: { all: 3 } },
+  4: { name: 'Дерево', tiles: { top: 5, side: 4, bottom: 5 } },
+  5: { name: 'Листва', tiles: { all: 6 } },
+  6: { name: 'Песок', tiles: { all: 7 } },
+  7: { name: 'Светокамень', tiles: { all: 8 }, light: 14 },
+  8: { name: 'Кирпич', tiles: { all: 9 } },
+  9: { name: 'Доски', tiles: { all: 10 } },
+  10: { name: 'Булыжник', tiles: { all: 11 } },
+  11: { name: 'Стекло', tiles: { all: 12 }, transparent: true },
+  12: { name: 'Лава', tiles: { all: 13 }, light: 15 }
+};
+let creativeHotbar = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+let survivalHotbar = [{id: 1, count: 1}, null, null, null, null, null, null, null, null];
+let survivalInventory = new Array(27).fill(null);
+
+function genIcon(type, val) {
+  const c = document.createElement('canvas'); c.width = c.height = 16;
+  const ctx = c.getContext('2d');
+  if (type === 'heart') {
+    ctx.fillStyle = val > 0 ? (val > 1 ? '#ff0000' : '#ff5555') : '#000';
+    if (val > 0) { ctx.fillRect(2,4,4,2); ctx.fillRect(10,4,4,2); ctx.fillRect(2,6,12,4); ctx.fillRect(4,10,8,2); ctx.fillRect(6,12,4,2); }
+  } else if (type === 'food') {
+    ctx.fillStyle = val > 0 ? (val > 1 ? '#c08a4e' : '#e0b080') : '#000';
+    if (val > 0) { ctx.fillRect(4,2,8,4); ctx.fillRect(6,6,4,8); }
+  }
+  return c.toDataURL();
+}
+
+const SKINS = {
+  steve: { name: 'Стив', color: '#00a8a8', locked: false },
+  zombie: { name: 'Зомби', color: '#00aa00', locked: true },
+  creeper: { name: 'Крипер', color: '#00ff00', locked: true }
+};
+
+function drawPlayerModel(ctx, skinColor) {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  const cx = ctx.canvas.width / 2;
+  const cy = ctx.canvas.height / 2 + 10;
+  ctx.fillStyle = skinColor;
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 1;
+  ctx.fillRect(cx - 10, cy - 40, 20, 20); ctx.strokeRect(cx - 10, cy - 40, 20, 20);
+  ctx.fillRect(cx - 12, cy - 20, 24, 30); ctx.strokeRect(cx - 12, cy - 20, 24, 30);
+  ctx.fillRect(cx - 20, cy - 20, 8, 25); ctx.strokeRect(cx - 20, cy - 20, 8, 25);
+  ctx.fillRect(cx + 12, cy - 20, 8, 25); ctx.strokeRect(cx + 12, cy - 20, 8, 25);
+  ctx.fillRect(cx - 10, cy + 10, 8, 20); ctx.strokeRect(cx - 10, cy + 10, 8, 20);
+  ctx.fillRect(cx + 2, cy + 10, 8, 20); ctx.strokeRect(cx + 2, cy + 10, 8, 20);
+}
+
+function renderSkinsUI() {
+  const list = document.getElementById('skin-list');
+  list.innerHTML = '';
+  for (const [key, skin] of Object.entries(SKINS)) {
+    const isUnlocked = PROFILE.unlockedSkins.includes(key);
+    const isEquipped = PROFILE.currentSkin === key;
+    const el = document.createElement('div');
+    el.className = 'setting-item cycle-btn';
+    el.style.height = '140px';
+    el.style.alignItems = 'center';
+    const canvas = document.createElement('canvas');
+    canvas.width = 60; canvas.height = 90;
+    drawPlayerModel(canvas.getContext('2d'), skin.color);
+    el.innerHTML = `<div style="font-size:12px; margin-bottom:5px;">${skin.name} ${isEquipped ? '✅' : (isUnlocked ? '' : '🔒')}</div>`;
+    el.appendChild(canvas);
+    el.onclick = () => {
+      if (isUnlocked) {
+        PROFILE.currentSkin = key;
+        localStorage.setItem('mc_profile', JSON.stringify(PROFILE));
+        renderSkinsUI();
+        updatePlayerSkin();
+      } else {
+        openAdModal(key);
+      }
+    };
+    list.appendChild(el);
+  }
+}
+
+let adPendingSkin = null;
+function openAdModal(skinKey) { adPendingSkin = skinKey; document.getElementById('ad-modal').classList.add('active'); }
+function closeAd() { document.getElementById('ad-modal').classList.remove('active'); adPendingSkin = null; }
+function confirmAd() {
+  if (!adPendingSkin) return;
+  const pending = adPendingSkin;
+  closeAd();
+  if (window.ysdk && window.ysdk.adv) {
+    window.ysdk.adv.showRewardedVideo({ callbacks: { onRewarded: () => { unlockSkin(pending); } } });
+  } else {
+    showToast('Просмотр рекламы...');
+    setTimeout(() => { unlockSkin(pending); showToast('Скин разблокирован!'); }, 1500);
+  }
+}
+function unlockSkin(skinKey) {
+  if (!skinKey) return;
+  if (!PROFILE.unlockedSkins.includes(skinKey)) {
+    PROFILE.unlockedSkins.push(skinKey);
+    localStorage.setItem('mc_profile', JSON.stringify(PROFILE));
+    renderSkinsUI();
+  }
+}
+
+window.updateFovLabel = (val) => {
+  let label = 'Нормально'; if (val < 50) label = 'Узкое'; if (val > 90) label = 'Широкое';
+  document.getElementById('val-fov').textContent = `${label} (${val})`;
+};
+window.toggleInvertMouse = () => { SETTINGS.invertY = !SETTINGS.invertY; document.getElementById('lbl-invert').textContent = `Инверсия мыши: ${SETTINGS.invertY ? 'ВКЛ' : 'ВЫКЛ'}`; };
+window.cycleDifficulty = () => {
+  const diffs = ['Мирно', 'Легко', 'Нормальная', 'Сложно'];
+  let currentIdx = diffs.indexOf(SETTINGS.difficulty);
+  if (currentIdx === -1) currentIdx = 2;
+  SETTINGS.difficulty = diffs[(currentIdx + 1) % 4];
+  document.getElementById('lbl-diff').textContent = `Сложность: ${SETTINGS.difficulty}`;
+};
+window.showToast = (msg) => { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.getElementById('toast-container').appendChild(t); setTimeout(() => t.remove(), 3000); };
+
+window.openSettings = () => { showScreen('screen-settings'); document.getElementById('pause-layer').classList.remove('active'); };
+window.saveAndCloseSettings = () => {
+  SETTINGS.sens = parseInt(document.getElementById('set-sens').value);
+  SETTINGS.fov = parseInt(document.getElementById('set-fov').value);
+  SETTINGS.renderDist = parseInt(document.getElementById('set-render').value);
+  localStorage.setItem('mc_settings', JSON.stringify(SETTINGS));
+  if (camera) { camera.fov = SETTINGS.fov; camera.updateProjectionMatrix(); }
+
+  if (currentWorldData) {
+    document.getElementById('pause-layer').classList.add('active');
+    document.getElementById('ui-layer').classList.add('hidden');
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  } else {
+    showScreen('screen-main');
+  }
+};
+
+window.showScreen = (id) => {
+  document.getElementById('ui-layer').classList.remove('hidden');
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'screen-select') renderWorldList();
+  if (id === 'screen-skins') renderSkinsUI();
+};
+
+document.getElementById('set-sens').value = SETTINGS.sens; document.getElementById('val-sens').textContent = SETTINGS.sens;
+document.getElementById('set-fov').value = SETTINGS.fov; updateFovLabel(SETTINGS.fov);
+document.getElementById('set-render').value = SETTINGS.renderDist; document.getElementById('val-render').textContent = SETTINGS.renderDist;
+document.getElementById('lbl-invert').textContent = `Инверсия мыши: ${SETTINGS.invertY ? 'ВКЛ' : 'ВЫКЛ'}`;
+document.getElementById('lbl-diff').textContent = `Сложность: ${SETTINGS.difficulty}`;
+
+/* ============================================================
+   МИРЫ (IndexedDB)
+   ============================================================ */
+let db = null;
+let worlds = [];
+function initDB() {
+  return new Promise(r => {
+    const req = indexedDB.open('MC_Clone_DB', 1);
+    req.onupgradeneeded = e => { if (!e.target.result.objectStoreNames.contains('worlds')) e.target.result.createObjectStore('worlds', { keyPath: 'id' }); };
+    req.onsuccess = e => { db = e.target.result; r(); };
+    req.onerror = () => r();
+  });
+}
+async function getWorldsFromDB() { if (!db) return []; return new Promise(r => { const req = db.transaction('worlds', 'readonly').objectStore('worlds').getAll(); req.onsuccess = () => r(req.result || []); req.onerror = () => r([]); }); }
+async function saveWorldToDB(w) { if (!db) return; return new Promise(r => { const tx = db.transaction('worlds', 'readwrite'); tx.objectStore('worlds').put(w); tx.oncomplete = () => r(); }); }
+async function deleteWorldFromDB(id) { if (!db) return; return new Promise(r => { const tx = db.transaction('worlds', 'readwrite'); tx.objectStore('worlds').delete(id); tx.oncomplete = () => r(); }); }
+
+let selectedWorldId = null;
+let createMode = 'creative';
+let createWorldType = 'normal';
+
+window.cycleCreateMode = () => {
+  createMode = createMode === 'creative' ? 'survival' : 'creative';
+  document.getElementById('btn-mode-cycle').textContent = `Режим игры: ${createMode === 'creative' ? 'Творческий' : 'Выживание'}`;
+};
+
+window.cycleWorldType = () => {
+  createWorldType = createWorldType === 'normal' ? 'flat' : 'normal';
+  document.getElementById('btn-worldtype-cycle').textContent = `Тип мира: ${createWorldType === 'normal' ? 'Обычный' : 'Суперплоский'}`;
+};
+
+window.renderWorldList = async () => {
+  const list = document.getElementById('world-list');
+  list.innerHTML = '<div style="text-align:center; padding:20px; font-size:10px; color:#aaa;">Загрузка...</div>';
+  worlds = await getWorldsFromDB(); worlds.sort((a, b) => b.lastPlayed - a.lastPlayed);
+  if (worlds.length === 0) { list.innerHTML = '<div style="text-align:center; padding:20px; font-size:10px; color:#aaa;">Нет миров</div>'; selectedWorldId = null; updateSelectButtons(); return; }
+  list.innerHTML = '';
+  worlds.forEach(w => {
+    const el = document.createElement('div'); el.className = 'world-item' + (w.id === selectedWorldId ? ' selected' : '');
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 50; const ctx = canvas.getContext('2d');
+    ctx.fillStyle = w.mode === 'creative' ? '#3b8c3b' : '#8c3b3b'; ctx.fillRect(0, 0, 50, 50);
+    ctx.fillStyle = '#222'; for(let i=0; i<25; i++) ctx.fillRect(Math.random()*50, Math.random()*50, 5, 5);
+    const d = new Date(w.lastPlayed);
+    const dateStr = `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getFullYear()).slice(-2)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    el.innerHTML = `<div class="world-preview"></div><div class="world-info"><div class="world-name">${w.name}</div><div class="world-meta">${w.name} (${dateStr})</div><div class="world-mode">${w.mode === 'creative' ? 'Творческий' : 'Выживание'} | ${w.worldType === 'flat' ? 'Плоский' : 'Обычный'}</div></div>`;
+    el.querySelector('.world-preview').appendChild(canvas);
+    el.onclick = () => { selectedWorldId = w.id; renderWorldList(); };
+    el.ondblclick = () => { if(selectedWorldId === w.id) playSelectedWorld(); };
+    list.appendChild(el);
+  });
+  updateSelectButtons();
+};
+
+function updateSelectButtons() {
+  document.getElementById('btn-play-world').disabled = !selectedWorldId;
+  document.getElementById('btn-rename-world').disabled = !selectedWorldId;
+  document.getElementById('btn-recreate-world').disabled = !selectedWorldId;
+  document.getElementById('btn-delete-world').disabled = !selectedWorldId;
+}
+
+window.renameSelectedWorld = async () => { if (!selectedWorldId) return; const w = worlds.find(x => x.id === selectedWorldId); const n = prompt('Введите новое имя мира:', w.name); if (n && n.trim()) { w.name = n.trim(); await saveWorldToDB(w); renderWorldList(); } };
+window.recreateSelectedWorld = async () => { if (!selectedWorldId || !confirm('Пересоздать мир? Постройки удалятся.')) return; const w = worlds.find(x => x.id === selectedWorldId); w.changedBlocks = {}; w.playerPos = null; w.lastPlayed = Date.now(); await saveWorldToDB(w); loadWorld(w); };
+window.deleteSelectedWorld = async () => { if (!selectedWorldId || !confirm('Удалить мир навсегда?')) return; await deleteWorldFromDB(selectedWorldId); selectedWorldId = null; renderWorldList(); };
+window.playSelectedWorld = async () => { if (!selectedWorldId) return; const w = worlds.find(x => x.id === selectedWorldId); w.lastPlayed = Date.now(); await saveWorldToDB(w); loadWorld(w); };
+
+window.createNewWorld = async () => {
+  const name = document.getElementById('input-name').value.trim() || 'Новый мир';
+  let seed = document.getElementById('input-seed').value.trim(); if (!seed) seed = Math.floor(Math.random() * 999999).toString();
+  const newWorld = { id: 'w_' + Date.now(), name, seed, mode: createMode, worldType: createWorldType, createdAt: Date.now(), lastPlayed: Date.now(), changedBlocks: {}, playerPos: null };
+  await saveWorldToDB(newWorld); selectedWorldId = newWorld.id; loadWorld(newWorld);
+};
+
+/* ============================================================
+   ИГРА (Движок, Свет, Мир)
+   ============================================================ */
+let W = 128, H = 48, D = 128;
+const CHUNK = 16, CX = W / CHUNK, CZ = D / CHUNK;
+let world = new Uint8Array(W * H * D);
+let lightMap = new Uint8Array(W * H * D);
+let seedOffset = 0;
+let currentWorldData = null;
+let worldSpawn = { x: W/2, y: H/2, z: D/2 };
+
+const idx = (x, y, z) => x + W * (z + D * y);
+function getBlock(x, y, z) { if (y < 0) return 3; if (x < 0 || x >= W || y >= H || z < 0 || z >= D) return 0; return world[idx(x, y, z)]; }
+function setBlock(x, y, z, v, record = true) { if (x < 0 || x >= W || y < 0 || y >= H || z < 0 || z >= D) return; world[idx(x, y, z)] = v; if (record && currentWorldData) currentWorldData.changedBlocks[`${x},${y},${z}`] = v; }
+function getLight(x, y, z) { if (x < 0 || x >= W || y < 0 || y >= H || z < 0 || z >= D) return 15; return lightMap[idx(x, y, z)]; }
+function setLight(x, y, z, v) { if (x < 0 || x >= W || y < 0 || y >= H || z < 0 || z >= D) return; lightMap[idx(x, y, z)] = v; }
+
+const TS = 16, atlas = document.createElement('canvas');
+atlas.width = atlas.height = TS * 4;
+const actx = atlas.getContext('2d');
+const smooth = t => t * t * (3 - 2 * t);
+const rnd = a => (Math.random() - 0.5) * a;
+const rgb = (r, g, b) => `rgb(${Math.min(255, Math.max(0, r|0))},${Math.min(255, Math.max(0, g|0))},${Math.min(255, Math.max(0, b|0))})`;
+function paint(tile, fn) { const tx = (tile % 4) * TS, ty = Math.floor(tile / 4) * TS; for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) { actx.fillStyle = fn(x, y); actx.fillRect(tx + x, ty + y, 1, 1); } }
+paint(0, () => rgb(98 + rnd(40), 160 + rnd(40), 55 + rnd(35)));
+const grassEdge = Array.from({ length: TS }, () => 3 + Math.floor(Math.random() * 3));
+paint(1, (x, y) => y < grassEdge[x] ? rgb(98 + rnd(40), 160 + rnd(40), 55 + rnd(35)) : rgb(136 + rnd(30), 98 + rnd(28), 68 + rnd(26)));
+paint(2, () => rgb(136 + rnd(30), 98 + rnd(28), 68 + rnd(26)));
+paint(3, () => rgb(128 + rnd(26), 128 + rnd(26), 130 + rnd(26)));
+const barkShade = Array.from({ length: TS }, () => rnd(22));
+paint(4, x => rgb(104 + barkShade[x], 78 + barkShade[x], 48 + barkShade[x]));
+paint(5, (x, y) => { const dx = x - 7.5, dy = y - 7.5, r = Math.sqrt(dx * dx + dy * dy); const ring = Math.sin(r * 2.2) * 18; return rgb(176 + ring + rnd(10), 140 + ring + rnd(10), 88 + ring + rnd(10)); });
+paint(6, () => { const v = rnd(50); return Math.random() < 0.08 ? rgb(30 + rnd(20), 60 + rnd(20), 25 + rnd(15)) : rgb(58 + v, 128 + v, 48 + v); });
+paint(7, () => rgb(220 + rnd(24), 208 + rnd(24), 158 + rnd(24)));
+paint(8, () => { const v = rnd(40); return Math.random() < 0.3 ? rgb(255, 255, 200 + v) : rgb(220 + v, 200 + v, 100 + v); });
+paint(9, (x, y) => (y % 4 === 0 || (x + Math.floor(y/4)*4) % 8 === 0) ? rgb(150, 150, 150) : rgb(160 + rnd(20), 50 + rnd(10), 50 + rnd(10)));
+paint(10, (x, y) => (y % 4 === 0) ? rgb(100, 70, 40) : rgb(160 + rnd(20), 120 + rnd(20), 80 + rnd(20)));
+paint(11, () => rgb(100 + rnd(40), 100 + rnd(40), 100 + rnd(40)));
+paint(12, (x, y) => {
+  if (x === 0 || x === 15 || y === 0 || y === 15) return 'rgba(200, 220, 255, 0.9)';
+  return 'rgba(200, 220, 255, 0.15)';
+});
+paint(13, () => rgb(255, 100 + rnd(40), 0));
+const FOOD_ICON = document.createElement('canvas'); FOOD_ICON.width = FOOD_ICON.height = 16; const fctx = FOOD_ICON.getContext('2d');
+fctx.fillStyle = '#c08a4e'; fctx.fillRect(4,2,8,4); fctx.fillRect(6,6,4,8);
+
+/* ===== ТЕКСТУРЫ И ГЕОМЕТРИИ МОБОВ (общие, создаются 1 раз) ===== */
+const texLoader = new THREE.TextureLoader();
+function loadTex(url){
+  const t = texLoader.load(url,
+    (tex)=>{ const im=tex.image; console.log('[TEX OK]', url, im?im.naturalWidth+'x'+im.naturalHeight:'NULL'); },
+    undefined,
+    (e)=>console.error('[TEX FAIL]', url, e&&e.message?e.message:e));
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const TEX = {
+  zHead:   loadTex('./textures/zHead.png'),
+  zHair:   loadTex('./textures/zHair.png'),
+  zFace:   loadTex('./textures/zFace.png'),
+  zShirt:  loadTex('./textures/zShirt.png'),
+  zPants:  loadTex('./textures/zPants.png'),
+  pigBody: loadTex('./textures/pigBody.png'),
+  pigFace: loadTex('./textures/pigFace.png'),
+  pigLeg:  loadTex('./textures/pigLeg.png'),
+};
+const MOB_GEO={
+  zBody:new THREE.BoxGeometry(0.6,0.8,0.3), zHead:new THREE.BoxGeometry(0.5,0.5,0.5),
+  zArm:new THREE.BoxGeometry(0.2,0.6,0.2),  zLeg:new THREE.BoxGeometry(0.25,0.8,0.25),
+  pBody:new THREE.BoxGeometry(0.6,0.5,0.8), pHead:new THREE.BoxGeometry(0.5,0.5,0.5),
+  pLeg:new THREE.BoxGeometry(0.2,0.3,0.2),
+};
+function mkMat(tex){ return new THREE.MeshBasicMaterial({ map:tex, color:0xffffff, fog:true }); }
+
+function hash2(x, z) { let h = Math.imul(x, 374761393) + Math.imul(z, 668265263) + seedOffset; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+function valueNoise(x, z) { const xi = Math.floor(x), zi = Math.floor(z), u = smooth(x - xi), v = smooth(z - zi); const a = hash2(xi, zi), b = hash2(xi + 1, zi), c = hash2(xi, zi + 1), d = hash2(xi + 1, zi + 1); return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v; }
+function fbm(x, z) { let val = 0, amp = 0.5, freq = 1, sum = 0; for (let i = 0; i < 4; i++) { val += valueNoise(x * freq, z * freq) * amp; sum += amp; amp *= 0.5; freq *= 2; } return val / sum; }
+function hash3(x, y, z) { let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(z, 2147483647) + seedOffset; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+function noise3D(x, y, z) { const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z); const u = smooth(x - xi), v = smooth(y - yi), w = smooth(z - zi); const a = hash3(xi, yi, zi), b = hash3(xi + 1, yi, zi); const c = hash3(xi, yi + 1, zi), d = hash3(xi + 1, yi + 1, zi); const e = hash3(xi, yi, zi + 1), f = hash3(xi + 1, yi, zi + 1); const g = hash3(xi, yi + 1, zi + 1), h = hash3(xi + 1, yi + 1, zi + 1); const x1 = a * (1 - u) + b * u, x2 = c * (1 - u) + d * u; const x3 = e * (1 - u) + f * u, x4 = g * (1 - u) + h * u; const y1 = x1 * (1 - v) + x2 * v, y2 = x3 * (1 - v) + x4 * v; return y1 * (1 - w) + y2 * w; }
+
+const SKY = 0x87ceeb;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(SKY);
+scene.fog = new THREE.Fog(SKY, 30, 90);
+let camera = new THREE.PerspectiveCamera(SETTINGS.fov, innerWidth / innerHeight, 0.08, 400);
+camera.rotation.order = 'YXZ';
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const texture = new THREE.CanvasTexture(atlas);
+texture.magFilter = THREE.NearestFilter; texture.minFilter = THREE.NearestFilter; texture.colorSpace = THREE.SRGBColorSpace; texture.generateMipmaps = false;
+
+const matOpaque = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true, fog: true, alphaTest: 0.5 });
+const matTrans = new THREE.MeshBasicMaterial({ map: texture, vertexColors: true, fog: true, transparent: true, side: THREE.DoubleSide });
+const FACES = [
+  { dir: [-1, 0, 0], shade: 0.80, corners: [{ pos: [0, 1, 0], uv: [0, 1] }, { pos: [0, 0, 0], uv: [0, 0] }, { pos: [0, 1, 1], uv: [1, 1] }, { pos: [0, 0, 1], uv: [1, 0] }] },
+  { dir: [ 1, 0, 0], shade: 0.80, corners: [{ pos: [1, 1, 1], uv: [0, 1] }, { pos: [1, 0, 1], uv: [0, 0] }, { pos: [1, 1, 0], uv: [1, 1] }, { pos: [1, 0, 0], uv: [1, 0] }] },
+  { dir: [0, -1, 0], shade: 0.50, corners: [{ pos: [1, 0, 1], uv: [1, 0] }, { pos: [0, 0, 1], uv: [0, 0] }, { pos: [1, 0, 0], uv: [1, 1] }, { pos: [0, 0, 0], uv: [0, 1] }] },
+  { dir: [0,  1, 0], shade: 1.00, corners: [{ pos: [0, 1, 1], uv: [1, 1] }, { pos: [1, 1, 1], uv: [0, 1] }, { pos: [0, 1, 0], uv: [1, 0] }, { pos: [1, 1, 0], uv: [0, 0] }] },
+  { dir: [0, 0, -1], shade: 0.65, corners: [{ pos: [1, 0, 0], uv: [0, 0] }, { pos: [0, 0, 0], uv: [1, 0] }, { pos: [1, 1, 0], uv: [0, 1] }, { pos: [0, 1, 0], uv: [1, 1] }] },
+  { dir: [0, 0,  1], shade: 0.65, corners: [{ pos: [0, 0, 1], uv: [0, 0] }, { pos: [1, 0, 1], uv: [1, 0] }, { pos: [0, 1, 1], uv: [0, 1] }, { pos: [1, 1, 1], uv: [1, 1] }] },
+];
+
+let chunkMeshes = new Array(CX * CZ).fill(null);
+
+function createMeshFromData(data, material) {
+  if (data.idx.length === 0) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(data.pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(data.uv, 2));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(data.col, 3));
+  geo.setIndex(data.idx);
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.frustumCulled = true;
+  scene.add(mesh);
+  return mesh;
+}
+
+function buildChunk(cx, cz) {
+  const opaqueData = { pos: [], uv: [], col: [], idx: [], vc: 0 };
+  const transData = { pos: [], uv: [], col: [], idx: [], vc: 0 };
+  const x0 = cx * CHUNK, z0 = cz * CHUNK;
+  const pxEps = 0.02;
+
+  for (let y = 0; y < H; y++) for (let z = z0; z < z0 + CHUNK; z++) for (let x = x0; x < x0 + CHUNK; x++) {
+    const b = getBlock(x, y, z); if (b === 0) continue; const def = BLOCKS[b];
+    const isTrans = def.transparent === true;
+    const data = isTrans ? transData : opaqueData;
+
+    for (const face of FACES) {
+      const nbX = x + face.dir[0], nbY = y + face.dir[1], nbZ = z + face.dir[2];
+      if (getBlock(nbX, nbY, nbZ) !== 0) continue;
+
+      const lightVal = getLight(nbX, nbY, nbZ);
+      const lightFactor = 0.15 + 0.85 * (lightVal / 15);
+      const finalShade = face.shade * lightFactor * (0.92 + 0.08 * hash3(x, y, z));
+
+      let tile; if (def.tiles.all !== undefined) tile = def.tiles.all; else if (face.dir[1] === 1) tile = def.tiles.top; else if (face.dir[1] === -1) tile = def.tiles.bottom; else tile = def.tiles.side;
+      const col = tile % 4, row = Math.floor(tile / 4);
+
+      const u0 = (col + pxEps) / 4;
+      const u1 = (col + 1 - pxEps) / 4;
+      const v0 = 1 - (row + 1 - pxEps) / 4;
+      const v1 = 1 - (row + pxEps) / 4;
+
+      for (const c of face.corners) {
+        data.pos.push(x + c.pos[0], y + c.pos[1], z + c.pos[2]);
+        const u = c.uv[0] === 0 ? u0 : u1;
+        const v = c.uv[1] === 0 ? v0 : v1;
+        data.uv.push(u, v);
+        data.col.push(finalShade, finalShade, finalShade);
+      }
+      data.idx.push(data.vc, data.vc + 1, data.vc + 2, data.vc + 2, data.vc + 1, data.vc + 3);
+      data.vc += 4;
+    }
+  }
+
+  const i = cx + cz * CX;
+  if (chunkMeshes[i]) {
+    if (chunkMeshes[i].opaque) { scene.remove(chunkMeshes[i].opaque); chunkMeshes[i].opaque.geometry.dispose(); }
+    if (chunkMeshes[i].trans) { scene.remove(chunkMeshes[i].trans); chunkMeshes[i].trans.geometry.dispose(); }
+  }
+
+  chunkMeshes[i] = {
+    opaque: createMeshFromData(opaqueData, matOpaque),
+    trans: createMeshFromData(transData, matTrans)
+  };
+}
+
+/* Свет (BFS) */
+const dirtyChunks = new Set();
+const chunkQueue = [];
+
+function markChunkDirty(cx, cz) {
+  if (cx < 0 || cx >= CX || cz < 0 || cz >= CZ) return;
+  const key = cx + ',' + cz;
+  if (!dirtyChunks.has(key)) { dirtyChunks.add(key); chunkQueue.push({ cx, cz }); }
+}
+
+function markAreaDirty(bx, bz) {
+  const cx = Math.floor(bx / CHUNK), cz = Math.floor(bz / CHUNK);
+  markChunkDirty(cx, cz);
+  if (bx % CHUNK === 0) markChunkDirty(cx - 1, cz);
+  if (bx % CHUNK === CHUNK - 1) markChunkDirty(cx + 1, cz);
+  if (bz % CHUNK === 0) markChunkDirty(cx, cz - 1);
+  if (bz % CHUNK === CHUNK - 1) markChunkDirty(cx, cz + 1);
+}
+
+function calculateGlobalLighting() {
+  lightMap.fill(0);
+  const queue = [];
+
+  for (let x = 0; x < W; x++) {
+    for (let z = 0; z < D; z++) {
+      for (let y = H - 1; y >= 0; y--) {
+        if (getBlock(x, y, z) === 0) {
+          setLight(x, y, z, 15);
+          queue.push([x, y, z]);
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  for (let x = 0; x < W; x++) {
+    for (let z = 0; z < D; z++) {
+      for (let y = 0; y < H; y++) {
+        const b = getBlock(x, y, z);
+        if (BLOCKS[b] && BLOCKS[b].light) {
+          setLight(x, y, z, BLOCKS[b].light);
+          queue.push([x, y, z]);
+        }
+      }
+    }
+  }
+
+  let head = 0;
+  const dirs = [[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]];
+  while (head < queue.length) {
+    const [x, y, z] = queue[head++];
+    const level = getLight(x, y, z);
+    if (level <= 1) continue;
+
+    for (let i = 0; i < 6; i++) {
+      const nx = x + dirs[i][0], ny = y + dirs[i][1], nz = z + dirs[i][2];
+      if (nx < 0 || nx >= W || ny < 0 || ny >= H || nz < 0 || nz >= D) continue;
+      if (getBlock(nx, ny, nz) !== 0) continue;
+      if (getLight(nx, ny, nz) < level - 1) {
+        setLight(nx, ny, nz, level - 1);
+        queue.push([nx, ny, nz]);
+      }
+    }
+  }
+}
+
+function processChunk(cx, cz) {
+  const x0 = cx * CHUNK, z0 = cz * CHUNK; const queue = [];
+  for (let y = 0; y < H; y++) for (let z = z0; z < z0 + CHUNK; z++) for (let x = x0; x < x0 + CHUNK; x++) setLight(x, y, z, 0);
+  for (let x = x0; x < x0 + CHUNK; x++) for (let z = z0; z < z0 + CHUNK; z++) { for (let y = H - 1; y >= 0; y--) { if (getBlock(x, y, z) === 0) { setLight(x, y, z, 15); queue.push([x, y, z]); } else break; } }
+  for (let y = 0; y < H; y++) for (let z = z0; z < z0 + CHUNK; z++) for (let x = x0; x < x0 + CHUNK; x++) { const b = getBlock(x, y, z); if (BLOCKS[b] && BLOCKS[b].light) { setLight(x, y, z, BLOCKS[b].light); queue.push([x, y, z]); } }
+  if (cx > 0) for (let y = 0; y < H; y++) for (let z = z0; z < z0 + CHUNK; z++) if (getBlock(x0, y, z) === 0) { const nl = getLight(x0 - 1, y, z); if (nl > 1) { setLight(x0, y, z, nl - 1); queue.push([x0, y, z]); } }
+  if (cx < CX - 1) for (let y = 0; y < H; y++) for (let z = z0; z < z0 + CHUNK; z++) { const bx = x0 + CHUNK - 1; if (getBlock(bx, y, z) === 0) { const nl = getLight(bx + 1, y, z); if (nl > 1) { setLight(bx, y, z, nl - 1); queue.push([bx, y, z]); } } }
+  if (cz > 0) for (let y = 0; y < H; y++) for (let x = x0; x < x0 + CHUNK; x++) if (getBlock(x, y, z0) === 0) { const nl = getLight(x, y, z0 - 1); if (nl > 1) { setLight(x, y, z0, nl - 1); queue.push([x, y, z0]); } }
+  if (cz < CZ - 1) for (let y = 0; y < H; y++) for (let x = x0; x < x0 + CHUNK; x++) { const bz = z0 + CHUNK - 1; if (getBlock(x, y, bz) === 0) { const nl = getLight(x, y, bz + 1); if (nl > 1) { setLight(x, y, bz, nl - 1); queue.push([x, y, bz]); } } }
+  let head = 0; const dirs = [[1,0,0], [-1,0,0], [0,1,0], [0,-1,0], [0,0,1], [0,0,-1]];
+  while (head < queue.length) {
+    const [x, y, z] = queue[head++]; const level = getLight(x, y, z); if (level <= 1) continue;
+    for (let i = 0; i < 6; i++) {
+      const nx = x + dirs[i][0], ny = y + dirs[i][1], nz = z + dirs[i][2];
+      if (nx < 0 || nx >= W || ny < 0 || ny >= H || nz < 0 || nz >= D) continue;
+      if (getBlock(nx, ny, nz) !== 0) continue;
+      if (getLight(nx, ny, nz) < level - 1) {
+        setLight(nx, ny, nz, level - 1); queue.push([nx, ny, nz]);
+        const ncx = Math.floor(nx / CHUNK), ncz = Math.floor(nz / CHUNK); if (ncx !== cx || ncz !== cz) markChunkDirty(ncx, ncz);
+      }
+    }
+  }
+}
+
+/* ============================================================
+   ИГРОК И МОБЫ
+   ============================================================ */
+const EYE = 1.62, PH = 1.8, PR = 0.3;
+const player = { x: W / 2 + 0.5, y: 0, z: D / 2 + 0.5, vx: 0, vy: 0, vz: 0, onGround: false, flying: false, health: 20, food: 20, peakY: 0 };
+let yaw = 0, pitch = 0, playing = false, lastSpaceTap = 0;
+let viewMode = 0;
+let regenTimer = 0, starveTimer = 0, lavaTimer = 0;
+let playerModel = null;
+
+const mobs = [];
+
+function playerCollides(px, py, pz) {
+  const e = 1e-4; const minX = Math.floor(px - PR + e), maxX = Math.floor(px + PR - e); const minY = Math.floor(py + e), maxY = Math.floor(py + PH - e); const minZ = Math.floor(pz - PR + e), maxZ = Math.floor(pz + PR - e);
+  for (let y = minY; y <= maxY; y++) for (let z = minZ; z <= maxZ; z++) for (let x = minX; x <= maxX; x++) if (getBlock(x, y, z) !== 0) return true;
+  return false;
+}
+
+function mobCollides(px, py, pz, width, height) {
+  const e = 1e-4; const minX = Math.floor(px - width + e), maxX = Math.floor(px + width - e); const minY = Math.floor(py + e), maxY = Math.floor(py + height - e); const minZ = Math.floor(pz - width + e), maxZ = Math.floor(pz + width - e);
+  for (let y = minY; y <= maxY; y++) for (let z = minZ; z <= maxZ; z++) for (let x = minX; x <= maxX; x++) if (getBlock(x, y, z) !== 0) return true;
+  return false;
+}
+
+function createPlayerModel() {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: SKINS[PROFILE.currentSkin].color || '#00a8a8' });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.3), mat); body.position.y = 0.9;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mat); head.position.y = 1.55;
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), mat); armL.position.set(-0.4, 0.9, 0);
+  const armR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), mat); armR.position.set(0.4, 0.9, 0);
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.8, 0.25), mat); legL.position.set(-0.15, 0.2, 0);
+  const legR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.8, 0.25), mat); legR.position.set(0.15, 0.2, 0);
+  group.add(body, head, armL, armR, legL, legR);
+  group.visible = false;
+  scene.add(group);
+  return group;
+}
+
+function updatePlayerSkin() {
+  if (!playerModel) return;
+  const color = SKINS[PROFILE.currentSkin].color || '#00a8a8';
+  playerModel.traverse(c => { if (c.isMesh) c.material.color.set(color); });
+}
+
+window.toggleCamera = () => {
+  viewMode = (viewMode + 1) % 2;
+  if (playerModel) playerModel.visible = (viewMode === 1);
+  if (viewMode === 0) camera.position.set(player.x, player.y + EYE, player.z);
+};
+
+/* ============================================================
+   ЛОГИКА МОБОВ
+   ============================================================ */
+function hasLineOfSight(x0, y0, z0, x1, y1, z1, maxDist) {
+  const dx = x1 - x0, dy = y1 - y0, dz = z1 - z0;
+  const dist = Math.hypot(dx, dy, dz);
+  if (dist < 1e-3) return true;
+  if (dist > maxDist) return false;
+  const sx = dx / dist, sy = dy / dist, sz = dz / dist;
+  let x = Math.floor(x0), y = Math.floor(y0), z = Math.floor(z0);
+  const stepX = sx > 0 ? 1 : -1, stepY = sy > 0 ? 1 : -1, stepZ = sz > 0 ? 1 : -1;
+  const tDX = sx === 0 ? Infinity : Math.abs(1 / sx), tDY = sy === 0 ? Infinity : Math.abs(1 / sy), tDZ = sz === 0 ? Infinity : Math.abs(1 / sz);
+  let tMX = sx === 0 ? Infinity : ((sx > 0 ? x + 1 - x0 : x0 - x) / Math.abs(sx));
+  let tMY = sy === 0 ? Infinity : ((sy > 0 ? y + 1 - y0 : y0 - y) / Math.abs(sy));
+  let tMZ = sz === 0 ? Infinity : ((sz > 0 ? z + 1 - z0 : z0 - z) / Math.abs(sz));
+  let t = 0;
+  while (t <= dist) {
+    if (!(x === Math.floor(x0) && y === Math.floor(y0) && z === Math.floor(z0)) && getBlock(x, y, z) !== 0) return false;
+    if (tMX < tMY && tMX < tMZ) { x += stepX; t = tMX; tMX += tDX; }
+    else if (tMY < tMZ) { y += stepY; t = tMY; tMY += tDY; }
+    else { z += stepZ; t = tMZ; tMZ += tDZ; }
+  }
+  return true;
+}
+
+function spawnMob(type) {
+  if (mobs.length >= 20) return;
+  let x, y, z, spawnOk = false;
+  for (let i = 0; i < 15; i++) {
+    x = Math.floor(player.x + (Math.random() * 76 - 38));
+    z = Math.floor(player.z + (Math.random() * 76 - 38));
+    if (x < 2 || x > W - 2 || z < 2 || z > D - 2) continue;
+    for (let yy = H - 2; yy > 1; yy--) {
+      if (getBlock(x, yy, z) === 0 && getBlock(x, yy - 1, z) !== 0) {
+        const light = getLight(x, yy, z);
+        const blockBelow = getBlock(x, yy - 1, z);
+        if (type === 'zombie' && light <= 7 && blockBelow !== 0 && blockBelow !== 5 && blockBelow !== 11 && blockBelow !== 12) { spawnOk = true; y = yy; break; }
+        if (type === 'pig' && light >= 9 && blockBelow === 1) { spawnOk = true; y = yy; break; }
+      }
+    }
+    if (spawnOk) {
+      const dist = Math.hypot(x - player.x, z - player.z);
+      if (type === 'zombie' && (dist < 8 || dist > 44)) { spawnOk = false; continue; }
+      if (type === 'pig' && (dist < 4 || dist > 44)) { spawnOk = false; continue; }
+      const mw = 0.4, mh = type === 'zombie' ? 1.8 : 0.8;
+      if (mobCollides(x, y, z, mw, mh)) { spawnOk = false; continue; }
+      break;
+    }
+  }
+  if (!spawnOk) return;
+  const mesh = new THREE.Group();
+  let mats;
+  if (type === 'zombie') {
+    const headMats = [mkMat(TEX.zHead), mkMat(TEX.zHead), mkMat(TEX.zHair), mkMat(TEX.zHead), mkMat(TEX.zHead), mkMat(TEX.zFace)];
+    const shirtMat = mkMat(TEX.zShirt), pantsMat = mkMat(TEX.zPants);
+    const body = new THREE.Mesh(MOB_GEO.zBody, shirtMat); body.position.y = 0.9;
+    const head = new THREE.Mesh(MOB_GEO.zHead, headMats); head.position.y = 1.55;
+    const armL = new THREE.Mesh(MOB_GEO.zArm, shirtMat); armL.position.set(-0.3, 1.1, -0.3);
+    const armR = new THREE.Mesh(MOB_GEO.zArm, shirtMat); armR.position.set(0.3, 1.1, -0.3);
+    const legL = new THREE.Mesh(MOB_GEO.zLeg, pantsMat); legL.position.set(-0.15, 0.4, 0);
+    const legR = new THREE.Mesh(MOB_GEO.zLeg, pantsMat); legR.position.set(0.15, 0.4, 0);
+    mesh.add(body, head, armL, armR, legL, legR);
+    mats = [...headMats, shirtMat, pantsMat];
+  } else {
+    const headMats = [mkMat(TEX.pigBody), mkMat(TEX.pigBody), mkMat(TEX.pigBody), mkMat(TEX.pigBody), mkMat(TEX.pigBody), mkMat(TEX.pigFace)];
+    const bodyMat = mkMat(TEX.pigBody), legMat = mkMat(TEX.pigLeg);
+    const body = new THREE.Mesh(MOB_GEO.pBody, bodyMat); body.position.y = 0.5;
+    const head = new THREE.Mesh(MOB_GEO.pHead, headMats); head.position.set(0, 0.6, -0.5);
+    const leg1 = new THREE.Mesh(MOB_GEO.pLeg, legMat); leg1.position.set(-0.2, 0.15, -0.2);
+    const leg2 = new THREE.Mesh(MOB_GEO.pLeg, legMat); leg2.position.set(0.2, 0.15, -0.2);
+    const leg3 = new THREE.Mesh(MOB_GEO.pLeg, legMat); leg3.position.set(-0.2, 0.15, 0.2);
+    const leg4 = new THREE.Mesh(MOB_GEO.pLeg, legMat); leg4.position.set(0.2, 0.15, 0.2);
+    mesh.add(body, head, leg1, leg2, leg3, leg4);
+    mats = [...headMats, bodyMat, legMat];
+  }
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+  mobs.push({ type, x, y, z, vx: 0, vy: 0, vz: 0, health: type === 'zombie' ? 10 : 5, mesh, mats, lastAttack: 0, wanderTimer: 0, wanderDir: { x: 0, z: 0 }, burning: false });
+}
+
+function updateMobs(dt) {
+  for (let i = mobs.length - 1; i >= 0; i--) {
+    const m = mobs[i];
+    const distToPlayer = Math.hypot(m.x - player.x, m.z - player.z);
+    if (distToPlayer > 44) { scene.remove(m.mesh); mobs.splice(i, 1); continue; }
+    m.vy -= 25 * dt; if (m.vy < -30) m.vy = -30;
+    const height = m.type === 'zombie' ? 1.8 : 0.8;
+    const width = 0.4;
+    if (m.type === 'zombie') {
+      const skyLight = getLight(Math.floor(m.x), Math.floor(m.y + 2), Math.floor(m.z));
+      if (skyLight === 15) {
+        if (!m.burning) { m.burning = true; for (const mt of m.mats) mt.color.set(0xff5500); }
+        m.health -= dt * 2;
+        if (m.health <= 0) { scene.remove(m.mesh); mobs.splice(i, 1); continue; }
+      } else {
+        if (m.burning) { m.burning = false; for (const mt of m.mats) mt.color.set(0xffffff); }
+      }
+    }
+    if (m.type === 'zombie') {
+      const dy = Math.abs(m.y - player.y);
+      if (distToPlayer < 16 && !mobCollides(m.x, m.y + 1, m.z, width, height)) {
+        if (distToPlayer > 1.5) {
+          const dirX = (player.x - m.x) / distToPlayer;
+          const dirZ = (player.z - m.z) / distToPlayer;
+          m.vx = dirX * 2.0; m.vz = dirZ * 2.0;
+        } else {
+          m.vx = 0; m.vz = 0;
+          const los = dy < 2 && hasLineOfSight(m.x, m.y + 1.5, m.z, player.x, player.y + EYE, player.z, 4);
+          if (los) {
+            const now = Date.now();
+            if (now - m.lastAttack > 1000) {
+              m.lastAttack = now;
+              if (currentWorldData && currentWorldData.mode === 'survival') { player.health -= 2; updateHUD(); checkDeath(); }
+            }
+          }
+        }
+      } else { m.vx = m.vz = 0; }
+    } else if (m.type === 'pig') {
+      if (distToPlayer < 5) {
+        const dirX = (m.x - player.x) / distToPlayer;
+        const dirZ = (m.z - player.z) / distToPlayer;
+        m.vx = dirX * 3.0; m.vz = dirZ * 3.0;
+      } else {
+        if (m.wanderTimer <= 0) {
+          m.wanderTimer = 2 + Math.random() * 3;
+          m.wanderDir = { x: (Math.random() - 0.5) * 2, z: (Math.random() - 0.5) * 2 };
+        }
+        m.wanderTimer -= dt;
+        m.vx = m.wanderDir.x; m.vz = m.wanderDir.z;
+      }
+    }
+    const nx = m.x + m.vx * dt;
+    if (!mobCollides(nx, m.y, m.z, width, height)) m.x = nx; else m.vx = 0;
+    const nz = m.z + m.vz * dt;
+    if (!mobCollides(m.x, m.y, nz, width, height)) m.z = nz; else m.vz = 0;
+    const ny = m.y + m.vy * dt;
+    if (!mobCollides(m.x, ny, m.z, width, height)) m.y = ny; else m.vy = 0;
+    m.mesh.position.set(m.x, m.y, m.z);
+    if (Math.abs(m.vx) > 0.01 || Math.abs(m.vz) > 0.01) m.mesh.rotation.y = Math.atan2(-m.vx, -m.vz);
+  }
+}
+
+/* ============================================================
+   HUD И ИНВЕНТАРЬ
+   ============================================================ */
+const ICON_HEART_FULL = genIcon('heart', 2), ICON_HEART_HALF = genIcon('heart', 1), ICON_HEART_EMPTY = genIcon('heart', 0);
+const ICON_FOOD_FULL = genIcon('food', 2), ICON_FOOD_HALF = genIcon('food', 1), ICON_FOOD_EMPTY = genIcon('food', 0);
+
+function updateHUD() {
+  if (currentWorldData && currentWorldData.mode === 'survival') {
+    document.getElementById('survival-hud').style.display = 'flex';
+    const hearts = document.getElementById('hud-hearts');
+    const foods = document.getElementById('hud-food');
+    hearts.innerHTML = ''; foods.innerHTML = '';
+    for (let i = 0; i < 10; i++) {
+      const h = document.createElement('div'); h.className = 'hud-icon';
+      const hVal = player.health - i * 2;
+      h.style.backgroundImage = `url(${hVal >= 2 ? ICON_HEART_FULL : hVal >= 1 ? ICON_HEART_HALF : ICON_HEART_EMPTY})`;
+      hearts.appendChild(h);
+
+      const f = document.createElement('div'); f.className = 'hud-icon';
+      const fVal = player.food - i;
+      f.style.backgroundImage = `url(${fVal >= 1 ? ICON_FOOD_FULL : fVal > 0 ? ICON_FOOD_HALF : ICON_FOOD_EMPTY})`;
+      foods.appendChild(f);
+    }
+  } else {
+    document.getElementById('survival-hud').style.display = 'none';
+  }
+  updateHandVisual();
+}
+
+function updateHandVisual() {
+  const hand = document.getElementById('hand-visual');
+  if (currentWorldData && currentWorldData.mode === 'survival' && viewMode === 0) {
+    const item = survivalHotbar[selectedSlot];
+    if (item && item.id === 'food') {
+      hand.innerHTML = `<img src="${FOOD_ICON.toDataURL()}" style="width:40px;height:40px;image-rendering:pixelated; position:absolute; top:10px; right:20px; transform:rotate(15deg);">`;
+    } else {
+      hand.innerHTML = `<div style="width:100%;height:100%;background:#b5651d;border:4px solid #000;border-radius:15px;transform:translateY(30px);"></div>`;
+    }
+    hand.style.display = 'block';
+  } else {
+    hand.style.display = 'none';
+  }
+}
+
+function getBlockIcon(id) {
+  const def = BLOCKS[id]; if (!def) return '';
+  const tile = def.tiles.all !== undefined ? def.tiles.all : def.tiles.side;
+  const c = document.createElement('canvas'); c.width = c.height = TS;
+  const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(atlas, (tile % 4) * TS, Math.floor(tile / 4) * TS, TS, TS, 0, 0, TS, TS); return c.toDataURL();
+}
+
+function buildHotbarUI() {
+  const hotbarContainer = document.getElementById('hotbar-container');
+  const invHotbarContainer = document.getElementById('inv-hotbar');
+  const survHotbarContainer = document.getElementById('surv-hotbar');
+
+  hotbarContainer.innerHTML = ''; invHotbarContainer.innerHTML = ''; survHotbarContainer.innerHTML = '';
+
+  const isSurvival = currentWorldData && currentWorldData.mode === 'survival';
+  const hotbarData = isSurvival ? survivalHotbar : creativeHotbar;
+
+  for (let i = 0; i < 9; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'slot' + (i === selectedSlot ? ' active' : '');
+    let imgSrc = ''; let countStr = '';
+
+    if (isSurvival) {
+      const item = hotbarData[i];
+      if (item) {
+        if (item.id === 'food') imgSrc = FOOD_ICON.toDataURL();
+        else if (BLOCKS[item.id]) imgSrc = getBlockIcon(item.id);
+        if (item.count > 1) countStr = `<span class="count">${item.count}</span>`;
+      }
+    } else {
+      const bId = hotbarData[i];
+      if (bId) imgSrc = getBlockIcon(bId);
+    }
+    slot.innerHTML = (imgSrc ? `<img src="${imgSrc}">` : '') + countStr;
+    slot.onclick = () => { selectedSlot = i; buildHotbarUI(); updateHUD(); };
+    hotbarContainer.appendChild(slot);
+
+    const islot = document.createElement('div');
+    islot.className = 'slot' + (i === selectedSlot ? ' active' : '');
+    islot.innerHTML = (imgSrc ? `<img src="${imgSrc}">` : '') + countStr;
+    islot.onclick = () => { selectedSlot = i; buildHotbarUI(); updateHUD(); };
+    invHotbarContainer.appendChild(islot);
+
+    const sslot = document.createElement('div');
+    sslot.className = 'slot' + (i === selectedSlot ? ' active' : '');
+    sslot.innerHTML = (imgSrc ? `<img src="${imgSrc}">` : '') + countStr;
+    sslot.onclick = () => { selectedSlot = i; buildHotbarUI(); updateHUD(); };
+    survHotbarContainer.appendChild(sslot);
+  }
+}
+
+window.toggleInventory = () => {
+  if (!playing || !currentWorldData) return;
+  const inv = document.getElementById('inventory-screen');
+  const survInv = document.getElementById('survival-inventory');
+
+  if (currentWorldData.mode === 'creative') {
+    if (inv.classList.contains('active')) {
+      inv.classList.remove('active'); if (!isTouch) renderer.domElement.requestPointerLock();
+    } else {
+      inv.classList.add('active'); if (!isTouch && document.pointerLockElement) document.exitPointerLock();
+      renderInventoryGrid(); buildHotbarUI();
+    }
+  } else if (currentWorldData.mode === 'survival') {
+    if (survInv.classList.contains('active')) {
+      survInv.classList.remove('active'); if (!isTouch) renderer.domElement.requestPointerLock();
+    } else {
+      survInv.classList.add('active'); if (!isTouch && document.pointerLockElement) document.exitPointerLock();
+      renderSurvivalInventory(); buildHotbarUI();
+    }
+  }
+};
+
+function renderInventoryGrid() {
+  const grid = document.getElementById('inv-grid'); grid.innerHTML = '';
+  for (const [idStr, def] of Object.entries(BLOCKS)) {
+    const id = parseInt(idStr);
+    const el = document.createElement('div'); el.className = 'inv-item';
+    el.innerHTML = `<img src="${getBlockIcon(id)}">`;
+    el.addEventListener('mouseenter', () => { tooltip.textContent = def.name; tooltip.style.display = 'block'; });
+    el.addEventListener('mousemove', (e) => { tooltip.style.left = (e.clientX + 15) + 'px'; tooltip.style.top = (e.clientY + 15) + 'px'; });
+    el.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    el.onclick = () => { creativeHotbar[selectedSlot] = id; buildHotbarUI(); };
+    grid.appendChild(el);
+  }
+}
+
+let selectedStorageSlot = -1;
+function renderSurvivalInventory() {
+  const grid = document.getElementById('surv-storage');
+  grid.innerHTML = '';
+  for (let i = 0; i < 27; i++) {
+    const el = document.createElement('div');
+    el.className = 'surv-slot';
+    if (selectedStorageSlot === i) el.style.borderColor = '#fff';
+    const item = survivalInventory[i];
+    if (item) {
+      let imgSrc = item.id === 'food' ? FOOD_ICON.toDataURL() : getBlockIcon(item.id);
+      let countStr = item.count > 1 ? `<span class="count">${item.count}</span>` : '';
+      el.innerHTML = `<img src="${imgSrc}">` + countStr;
+    }
+    el.onclick = () => {
+      if (selectedStorageSlot === -1) {
+        if (survivalInventory[i]) {
+          const temp = survivalInventory[i];
+          survivalInventory[i] = survivalHotbar[selectedSlot];
+          survivalHotbar[selectedSlot] = temp;
+          buildHotbarUI(); renderSurvivalInventory();
+        }
+      }
+    };
+    grid.appendChild(el);
+  }
+  const canvas = document.getElementById('surv-preview-canvas');
+  drawPlayerModel(canvas.getContext('2d'), SKINS[PROFILE.currentSkin].color);
+}
+
+/* ============================================================
+   ФИЗИКА И УПРАВЛЕНИЕ
+   ============================================================ */
+function physicsStep(dt) {
+  const isCreative = currentWorldData && currentWorldData.mode === 'creative';
+  const isSurvival = currentWorldData && currentWorldData.mode === 'survival';
+
+  let speed = 4.4;
+  if (keys['ShiftLeft'] || keys['ShiftRight']) speed = 1.5;
+  if (player.flying && isCreative) speed = 10.0;
+
+  let mx = 0, mz = 0;
+  if (keys['KeyW']) mz -= 1; if (keys['KeyS']) mz += 1; if (keys['KeyA']) mx -= 1; if (keys['KeyD']) mx += 1;
+  if (isTouch) { mx += joyVector.x; mz += joyVector.y; }
+  const len = Math.hypot(mx, mz); let wishX = 0, wishZ = 0;
+  if (len > 0.05) {
+    const mag = Math.min(1, len); mx /= len; mz /= len;
+    const sin = Math.sin(yaw), cos = Math.cos(yaw);
+    wishX = (mx * cos + mz * sin) * mag; wishZ = (-mx * sin + mz * cos) * mag;
+  }
+  const accel = (player.onGround || player.flying) ? 14 : 5;
+  player.vx += (wishX * speed - player.vx) * Math.min(1, accel * dt);
+  player.vz += (wishZ * speed - player.vz) * Math.min(1, accel * dt);
+
+  const isSneaking = (keys['ShiftLeft'] || keys['ShiftRight']) && !player.flying && player.onGround;
+
+  if (player.flying && isCreative) {
+    player.vy = 0;
+    if (keys['Space']) player.vy = speed;
+    if (keys['ShiftLeft'] || keys['ShiftRight']) player.vy = -speed;
+    player.onGround = false;
+  } else {
+    player.vy -= 28 * dt; if (player.vy < -40) player.vy = -40;
+    if (keys['Space'] && player.onGround) { player.vy = 9.2; player.onGround = false; }
+  }
+
+  const checkEdge = (nx, nz) => {
+    if (!isSneaking) return true;
+    const bx = Math.floor(nx);
+    const bz = Math.floor(nz);
+    const by = Math.floor(player.y - 0.1);
+    return getBlock(bx, by, bz) !== 0;
+  };
+
+  const nx = player.x + player.vx * dt;
+  if (!playerCollides(nx, player.y, player.z) && checkEdge(nx, player.z)) player.x = nx; else player.vx = 0;
+
+  const nz = player.z + player.vz * dt;
+  if (!playerCollides(player.x, player.y, nz) && checkEdge(player.x, nz)) player.z = nz; else player.vz = 0;
+
+  const ny = player.y + player.vy * dt;
+  const wasGround = player.onGround;
+  player.onGround = false;
+  if (!playerCollides(player.x, ny, player.z)) {
+    player.y = ny;
+    if (player.vy < 0) player.peakY = Math.max(player.peakY, player.y);
+  } else {
+    if (player.vy < 0) player.onGround = true;
+    player.vy = 0;
+  }
+
+  if (isSurvival) {
+    if (!wasGround && player.onGround) {
+      const fallDist = player.peakY - player.y;
+      if (fallDist >= 3) {
+        const dmg = Math.floor(fallDist) - 3;
+        if (dmg > 0) { player.health -= dmg; updateHUD(); checkDeath(); }
+      }
+      player.peakY = player.y;
+    } else if (player.onGround) { player.peakY = player.y; }
+
+    const bx = Math.floor(player.x), by = Math.floor(player.y), bz = Math.floor(player.z);
+    const inLava = getBlock(bx, by, bz) === 12 || getBlock(bx, by+1, bz) === 12;
+    if (inLava) {
+      lavaTimer += dt;
+      if (lavaTimer >= 0.5) { lavaTimer = 0; player.health -= 1; updateHUD(); checkDeath(); }
+    } else { lavaTimer = 0; }
+
+    if (player.food >= 18) {
+      regenTimer += dt;
+      if (regenTimer >= 4) {
+        regenTimer = 0;
+        if (player.health < 20) { player.health++; player.food -= 0.1; updateHUD(); }
+      }
+    } else regenTimer = 0;
+
+    if (player.food <= 0) {
+      starveTimer += dt;
+      if (starveTimer >= 4) { starveTimer = 0; player.health -= 1; updateHUD(); checkDeath(); }
+    } else starveTimer = 0;
+  }
+
+  if (player.y < -20) { player.y = 28; player.vy = 0; player.x = W / 2 + 0.5; player.z = D / 2 + 0.5; }
+  player.x = Math.max(PR + 0.01, Math.min(W - PR - 0.01, player.x));
+  player.z = Math.max(PR + 0.01, Math.min(D - PR - 0.01, player.z));
+}
+
+function checkDeath() {
+  if (player.health <= 0 && currentWorldData && currentWorldData.mode === 'survival') {
+    player.health = 0;
+    document.getElementById('death-screen').classList.add('active');
+    document.getElementById('game-ui').style.display = 'none';
+    playing = false;
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+}
+
+window.respawnPlayer = () => {
+  player.health = 20; player.food = 20;
+  player.x = worldSpawn.x; player.y = worldSpawn.y; player.z = worldSpawn.z;
+  player.vx = player.vy = player.vz = 0;
+  document.getElementById('death-screen').classList.remove('active');
+  document.getElementById('game-ui').style.display = 'block';
+  playing = true;
+  updateHUD();
+  if (!isTouch) renderer.domElement.requestPointerLock();
+};
+
+const keys = Object.create(null);
+let selectedSlot = 0;
+
+document.getElementById('btn-pause').addEventListener('touchstart', (e) => { e.preventDefault(); pauseGame(); }, { passive: false });
+document.getElementById('btn-inventory').addEventListener('touchstart', (e) => { e.preventDefault(); toggleInventory(); }, { passive: false });
+document.getElementById('btn-camera').addEventListener('touchstart', (e) => { e.preventDefault(); toggleCamera(); }, { passive: false });
+
+const btnJump = document.getElementById('btn-jump');
+let lastJumpTap = 0;
+btnJump.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  keys['Space'] = true;
+  const now = performance.now();
+  if (currentWorldData && currentWorldData.mode === 'creative') {
+    if (now - lastJumpTap < 300) {
+      player.flying = !player.flying;
+      player.vy = 0;
+    }
+  }
+  lastJumpTap = now;
+}, { passive: false });
+btnJump.addEventListener('touchend', (e) => { e.preventDefault(); keys['Space'] = false; });
+btnJump.addEventListener('touchcancel', () => { keys['Space'] = false; });
+
+const btnDown = document.getElementById('btn-down');
+btnDown.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ShiftLeft'] = true; }, { passive: false });
+btnDown.addEventListener('touchend', (e) => { e.preventDefault(); keys['ShiftLeft'] = false; });
+btnDown.addEventListener('touchcancel', () => { keys['ShiftLeft'] = false; });
+
+addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (e.code === 'F3') { e.preventDefault(); toggleDebug(); }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    const now = performance.now();
+    if (currentWorldData && currentWorldData.mode === 'creative') {
+      if (now - lastSpaceTap < 300) { player.flying = !player.flying; player.vy = 0; }
+    }
+    lastSpaceTap = now;
+  }
+  if (e.code === 'KeyE') { e.preventDefault(); toggleInventory(); }
+  if (e.code === 'F5') { e.preventDefault(); toggleCamera(); }
+  if (e.code === 'Escape') {
+    if (document.getElementById('inventory-screen').classList.contains('active')) toggleInventory();
+    else if (document.getElementById('survival-inventory').classList.contains('active')) toggleInventory();
+    else if (document.getElementById('pause-layer').classList.contains('active')) resumeGame();
+  }
+  if (e.code.startsWith('Digit')) {
+    const n = parseInt(e.code.slice(5), 10) - 1;
+    if (n >= 0 && n < 9) { selectedSlot = n; buildHotbarUI(); updateHUD(); }
+  }
+});
+addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+document.addEventListener('mousemove', (e) => {
+  if (isTouch || !playing || document.pointerLockElement !== renderer.domElement) return;
+  const sens = 0.0022 * (SETTINGS.sens / 100);
+  yaw -= e.movementX * sens;
+  pitch -= (SETTINGS.invertY ? -e.movementY : e.movementY) * sens;
+  pitch = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, pitch));
+});
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+document.addEventListener('mousedown', (e) => {
+  if (isTouch || !playing || document.pointerLockElement !== renderer.domElement) return;
+  if (e.button === 0) {
+    const hitMob = raycastMob();
+    if (hitMob) {
+      hitMob.health -= 2;
+      if (hitMob.health <= 0) {
+        scene.remove(hitMob.mesh);
+        mobs.splice(mobs.indexOf(hitMob), 1);
+        if (hitMob.type === 'pig' && currentWorldData.mode === 'survival') {
+          const drop = 1 + Math.floor(Math.random() * 3);
+          let found = false;
+          for (let i = 0; i < 9; i++) {
+            if (survivalHotbar[i] && survivalHotbar[i].id === 'food') {
+              survivalHotbar[i].count += drop; found = true; break;
+            }
+          }
+          if (!found) {
+            for (let i = 0; i < 9; i++) {
+              if (!survivalHotbar[i]) { survivalHotbar[i] = { id: 'food', count: drop }; break; }
+            }
+          }
+          buildHotbarUI(); updateHUD();
+        }
+      }
+    } else {
+      breakBlock();
+    }
+  } else if (e.button === 2) {
+    if (currentWorldData.mode === 'survival') {
+      const item = survivalHotbar[selectedSlot];
+      if (item && item.id === 'food' && item.count > 0) {
+        player.food = Math.min(20, player.food + 6);
+        item.count--;
+        if (item.count <= 0) survivalHotbar[selectedSlot] = null;
+        buildHotbarUI(); updateHUD();
+      }
+    } else {
+      placeBlock();
+    }
+  }
+});
+
+addEventListener('wheel', (e) => {
+  if (isTouch || !playing || document.pointerLockElement !== renderer.domElement) return;
+  selectedSlot = (selectedSlot + Math.sign(e.deltaY) + 9) % 9; buildHotbarUI(); updateHUD();
+}, { passive: true });
+
+const _dir = new THREE.Vector3();
+function raycastBlock(maxDist = 6) {
+  _dir.set(0, 0, -1).applyEuler(camera.rotation).normalize();
+  const ox = camera.position.x, oy = camera.position.y, oz = camera.position.z;
+  const dx = _dir.x, dy = _dir.y, dz = _dir.z;
+  let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
+  const stepX = dx > 0 ? 1 : -1, stepY = dy > 0 ? 1 : -1, stepZ = dz > 0 ? 1 : -1;
+  const tDeltaX = dx === 0 ? Infinity : Math.abs(1 / dx), tDeltaY = dy === 0 ? Infinity : Math.abs(1 / dy), tDeltaZ = dz === 0 ? Infinity : Math.abs(1 / dz);
+  let tMaxX = dx === 0 ? Infinity : ((dx > 0 ? x + 1 - ox : ox - x) / Math.abs(dx));
+  let tMaxY = dy === 0 ? Infinity : ((dy > 0 ? y + 1 - oy : oy - y) / Math.abs(dy));
+  let tMaxZ = dz === 0 ? Infinity : ((dz > 0 ? z + 1 - oz : oz - z) / Math.abs(dz));
+  let nx = 0, ny = 0, nz = 0, t = 0;
+  while (t <= maxDist) {
+    if (getBlock(x, y, z) !== 0) return { x, y, z, nx, ny, nz, dist: t };
+    if (tMaxX < tMaxY && tMaxX < tMaxZ) { x += stepX; t = tMaxX; tMaxX += tDeltaX; nx = -stepX; ny = 0; nz = 0; }
+    else if (tMaxY < tMaxZ) { y += stepY; t = tMaxY; tMaxY += tDeltaY; nx = 0; ny = -stepY; nz = 0; }
+    else { z += stepZ; t = tMaxZ; tMaxZ += tDeltaZ; nx = 0; ny = 0; nz = -stepZ; }
+  }
+  return null;
+}
+
+function raycastMob(maxDist = 6) {
+  _dir.set(0, 0, -1).applyEuler(camera.rotation).normalize();
+  let closest = null; let minDist = maxDist;
+  for (const m of mobs) {
+    const height = m.type === 'zombie' ? 1.8 : 0.8;
+    const w = 0.8;
+    const minX = m.x - w/2, maxX = m.x + w/2;
+    const minY = m.y, maxY = m.y + height;
+    const minZ = m.z - w/2, maxZ = m.z + w/2;
+
+    const dx = _dir.x, dy = _dir.y, dz = _dir.z;
+    const ox = camera.position.x, oy = camera.position.y, oz = camera.position.z;
+
+    let tmin = (minX - ox) / dx; let tmax = (maxX - ox) / dx;
+    if (tmin > tmax) { const temp = tmin; tmin = tmax; tmax = temp; }
+    let tymin = (minY - oy) / dy; let tymax = (maxY - oy) / dy;
+    if (tymin > tymax) { const temp = tymin; tymin = tymax; tymax = temp; }
+    if ((tmin > tymax) || (tymin > tmax)) continue;
+    if (tymin > tmin) tmin = tymin; if (tymax < tmax) tmax = tymax;
+    let tzmin = (minZ - oz) / dz; let tzmax = (maxZ - oz) / dz;
+    if (tzmin > tzmax) { const temp = tzmin; tzmin = tzmax; tzmax = temp; }
+    if ((tmin > tzmax) || (tzmin > tmax)) continue;
+    if (tzmin > tmin) tmin = tzmin; if (tzmax < tmax) tmax = tzmax;
+    if (tmax < 0) continue;
+    if (tmin < minDist && tmin > 0) { minDist = tmin; closest = m; }
+  }
+  return closest;
+}
+
+function breakBlock() {
+  const hit = raycastBlock();
+  if (hit) { setBlock(hit.x, hit.y, hit.z, 0, true); markAreaDirty(hit.x, hit.z); }
+}
+
+function placeBlock() {
+  const hit = raycastBlock(); if (!hit) return;
+  const nx = hit.x + hit.nx, ny = hit.y + hit.ny, nz = hit.z + hit.nz;
+  if (ny < 0 || ny >= H || getBlock(nx, ny, nz) !== 0) return;
+  if (!player.flying && nx + 1 > player.x - PR && nx < player.x + PR && ny + 1 > player.y && ny < player.y + PH && nz + 1 > player.z - PR && nz < player.z + PR) return;
+  setBlock(nx, ny, nz, creativeHotbar[selectedSlot], true); markAreaDirty(nx, nz);
+}
+
+const highlight = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 }));
+highlight.visible = false; scene.add(highlight);
+
+window.loadWorld = (wData) => {
+  requestFullscreen();
+
+  currentWorldData = wData;
+  document.body.classList.toggle('creative', wData.mode === 'creative');
+
+  seedOffset = 0; for (let i = 0; i < wData.seed.length; i++) seedOffset += wData.seed.charCodeAt(i) * (i + 1);
+
+  for (let i = 0; i < chunkMeshes.length; i++) {
+    if (chunkMeshes[i]) {
+      if (chunkMeshes[i].opaque) { scene.remove(chunkMeshes[i].opaque); chunkMeshes[i].opaque.geometry.dispose(); }
+      if (chunkMeshes[i].trans) { scene.remove(chunkMeshes[i].trans); chunkMeshes[i].trans.geometry.dispose(); }
+      chunkMeshes[i] = null;
+    }
+  }
+
+  world.fill(0); lightMap.fill(0);
+  dirtyChunks.clear(); chunkQueue.length = 0;
+  mobs.forEach(m => scene.remove(m.mesh)); mobs.length = 0;
+
+  if (wData.worldType === 'flat') {
+    for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+      for (let y = 0; y < H; y++) {
+        let b = 0;
+        if (y === 0) b = 3;
+        else if (y <= 2) b = 2;
+        else if (y === 3) b = 1;
+        setBlock(x, y, z, b, false);
+      }
+    }
+  } else {
+    for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+      const e = fbm(x * 0.035, z * 0.035); const h = Math.floor(8 + e * (H - 20));
+      for (let y = 0; y <= h; y++) {
+        let b = y === h ? (h <= 12 ? 6 : 1) : (y > h - 3 ? (h <= 12 ? 6 : 2) : 3);
+        
+        // ===== ИСПРАВЛЕННЫЙ ГЕНЕРАТОР ПЕЩЕР =====
+        if (y <= h - 4 && y > 1) {
+          const c1 = noise3D(x * 0.08, y * 0.12, z * 0.08);
+          const c2 = noise3D(x * 0.08 + 100, y * 0.12 + 100, z * 0.08 + 100);
+          if (Math.abs(c1 - 0.5) < 0.06 && Math.abs(c2 - 0.5) < 0.06) {
+            b = 0;
+          }
+        }
+        // =========================================
+
+        if (b === 3 && y < 5 && hash3(x, y, z) < 0.1) b = 12;
+        setBlock(x, y, z, b, false);
+      }
+    }
+
+    for (let i = 0; i < 250; i++) {
+      const x = 4 + Math.floor(hash3(i, 11, 0) * (W - 8));
+      const z = 4 + Math.floor(hash3(i, 23, 0) * (D - 8));
+      let h = -1; for (let y = H - 1; y >= 0; y--) if (getBlock(x, y, z) !== 0) { h = y; break; }
+      if (h < 12 || getBlock(x, h, z) !== 1) continue;
+      const trunk = 4 + Math.floor(hash3(i, 37, 0) * 3), top = h + trunk;
+      if (top + 2 >= H) continue;
+      for (let y = h + 1; y <= top; y++) setBlock(x, y, z, 4, false);
+      for (let dy = -2; dy <= 1; dy++) { const r = dy <= -1 ? 2 : 1; for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { if (dx===0 && dz===0 && dy<=0) continue; if (Math.abs(dx)===r && Math.abs(dz)===r && hash3(i*512 + dx + 64, dy + 32, dz + 64) < 0.5) continue; const yy = top + dy; if (getBlock(x+dx, yy, z+dz) === 0) setBlock(x+dx, yy, z+dz, 5, false); } }
+    }
+  }
+
+  for (const [key, b] of Object.entries(wData.changedBlocks || {})) { const [x, y, z] = key.split(',').map(Number); setBlock(x, y, z, b, false); }
+
+  player.x = W / 2 + 0.5; player.z = D / 2 + 0.5;
+  for (let y = H - 1; y >= 0; y--) if (getBlock(Math.floor(player.x), y, Math.floor(player.z)) !== 0) { player.y = y + 1.02; break; }
+  if (!wData.spawnPoint) { wData.spawnPoint = { x: player.x, y: player.y, z: player.z }; saveWorldToDB(wData); }
+  worldSpawn = wData.spawnPoint;
+
+  if (wData.playerPos) { player.x = wData.playerPos.x; player.y = wData.playerPos.y; player.z = wData.playerPos.z; yaw = wData.playerPos.yaw; pitch = wData.playerPos.pitch; }
+  player.vx = player.vy = player.vz = 0; player.flying = false; player.health = 20; player.food = 20;
+
+  selectedSlot = 0;
+
+  if (wData.mode === 'survival') {
+    survivalHotbar = [{id: 1, count: 1}, null, null, null, null, null, null, null, null];
+    survivalInventory.fill(null);
+  }
+
+  document.getElementById('ui-layer').classList.add('hidden');
+  document.getElementById('game-ui').style.display = 'block';
+  playing = true;
+
+  if (!playerModel) playerModel = createPlayerModel();
+  updatePlayerSkin();
+  playerModel.visible = (viewMode === 1);
+
+  buildHotbarUI(); updateHUD();
+
+  calculateGlobalLighting();
+  for (let cz = 0; cz < CZ; cz++) {
+    for (let cx = 0; cx < CX; cx++) {
+      buildChunk(cx, cz);
+    }
+  }
+
+  if (!isTouch) renderer.domElement.requestPointerLock();
+};
+
+window.pauseGame = () => {
+  playing = false;
+  document.getElementById('pause-layer').classList.add('active');
+  document.getElementById('game-ui').style.display = 'none';
+  if (!isTouch && document.pointerLockElement) document.exitPointerLock();
+};
+
+window.resumeGame = () => {
+  document.getElementById('pause-layer').classList.remove('active');
+  document.getElementById('game-ui').style.display = 'block';
+  playing = true;
+  if (!isTouch) renderer.domElement.requestPointerLock();
+};
+
+document.addEventListener('pointerlockchange', () => {
+  if (isTouch) return;
+  const locked = document.pointerLockElement === renderer.domElement;
+  const invOpen = document.getElementById('inventory-screen').classList.contains('active') || document.getElementById('survival-inventory').classList.contains('active');
+  if (!locked && playing && !invOpen) pauseGame();
+});
+
+window.saveAndQuitGame = async () => {
+  if (currentWorldData) {
+    currentWorldData.playerPos = { x: player.x, y: player.y, z: player.z, yaw, pitch };
+    await saveWorldToDB(currentWorldData);
+    currentWorldData = null;
+  }
+  playing = false;
+  document.getElementById('pause-layer').classList.remove('active');
+  document.getElementById('game-ui').style.display = 'none';
+  showScreen('screen-main'); selectedWorldId = null;
+};
+
+let lookTouchId = null, lastLookX = 0, lastLookY = 0;
+renderer.domElement.addEventListener('touchstart', (e) => { if (!playing) return; for (const t of e.changedTouches) if (lookTouchId === null) { lookTouchId = t.identifier; lastLookX = t.clientX; lastLookY = t.clientY; } }, { passive: false });
+renderer.domElement.addEventListener('touchmove', (e) => { if (!playing) return; e.preventDefault(); const sens = 0.0045 * (SETTINGS.sens / 100); for (const t of e.changedTouches) if (t.identifier === lookTouchId) { yaw -= (t.clientX - lastLookX) * sens; pitch -= (SETTINGS.invertY ? -(t.clientY - lastLookY) : (t.clientY - lastLookY)) * sens; pitch = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, pitch)); lastLookX = t.clientX; lastLookY = t.clientY; } }, { passive: false });
+renderer.domElement.addEventListener('touchend', (e) => { for (const t of e.changedTouches) if (t.identifier === lookTouchId) lookTouchId = null; });
+renderer.domElement.addEventListener('touchcancel', () => { lookTouchId = null; });
+
+const joyEl = document.getElementById('joystick'), knob = document.getElementById('joystick-knob'), joyVector = { x: 0, y: 0 };
+let joyTouchId = null;
+function updateJoystick(t) { const rect = joyEl.getBoundingClientRect(), cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2; let dx = t.clientX - cx, dy = t.clientY - cy; const maxR = rect.width / 2 - 20, d = Math.hypot(dx, dy); if (d > maxR) { dx = dx / d * maxR; dy = dy / d * maxR; } knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; joyVector.x = dx / maxR; joyVector.y = dy / maxR; }
+joyEl.addEventListener('touchstart', (e) => { e.preventDefault(); const t = e.changedTouches[0]; joyTouchId = t.identifier; updateJoystick(t); }, { passive: false });
+joyEl.addEventListener('touchmove', (e) => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === joyTouchId) updateJoystick(t); }, { passive: false });
+function resetJoystick() { joyTouchId = null; joyVector.x = joyVector.y = 0; knob.style.transform = 'translate(-50%, -50%)'; }
+joyEl.addEventListener('touchend', (e) => { for (const t of e.changedTouches) if (t.identifier === joyTouchId) resetJoystick(); });
+joyEl.addEventListener('touchcancel', resetJoystick);
+
+function holdRepeat(el, cb, interval = 220) { let timer = null; el.addEventListener('touchstart', (e) => { e.preventDefault(); if (timer) return; cb(); timer = setInterval(cb, interval); }, { passive: false }); const stop = (e) => { if (e) e.preventDefault(); clearInterval(timer); timer = null; }; el.addEventListener('touchend', stop); el.addEventListener('touchcancel', stop); }
+holdRepeat(document.getElementById('btn-break'), () => { if (playing) breakBlock(); });
+
+document.getElementById('btn-place').addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (playing) {
+    if (currentWorldData.mode === 'survival') {
+      const item = survivalHotbar[selectedSlot];
+      if (item && item.id === 'food' && item.count > 0) {
+        player.food = Math.min(20, player.food + 6);
+        item.count--;
+        if (item.count <= 0) survivalHotbar[selectedSlot] = null;
+        buildHotbarUI(); updateHUD();
+      }
+    } else {
+      placeBlock();
+    }
+  }
+}, { passive: false });
+
+const clock = new THREE.Clock();
+let spawnTimer = 0;
+let grassTickTimer = 0;
+let debugTimer = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  let dt = clock.getDelta(); if (dt > 0.1) dt = 0.1;
+
+  const invOpen = document.getElementById('inventory-screen').classList.contains('active') || document.getElementById('survival-inventory').classList.contains('active');
+  const isPaused = document.getElementById('pause-layer').classList.contains('active');
+  const isDead = document.getElementById('death-screen').classList.contains('active');
+
+  if (!isPaused && currentWorldData) {
+    const start = performance.now();
+    while (chunkQueue.length > 0 && performance.now() - start < 8) {
+      const { cx, cz } = chunkQueue.shift();
+      dirtyChunks.delete(cx + ',' + cz);
+      processChunk(cx, cz);
+      buildChunk(cx, cz);
+    }
+  }
+
+  if (playing && !invOpen && !isPaused && !isDead) {
+    let remaining = dt;
+    while (remaining > 0) { const step = Math.min(remaining, 1 / 120); physicsStep(step); remaining -= step; }
+
+    if (viewMode === 1 && playerModel) {
+      playerModel.position.set(player.x, player.y, player.z);
+      playerModel.rotation.y = yaw;
+      const back = 4;
+      camera.position.set(player.x + Math.sin(yaw)*back, player.y + EYE + 1, player.z + Math.cos(yaw)*back);
+      camera.lookAt(player.x, player.y + EYE, player.z);
+    } else {
+      const currentEye = (keys['ShiftLeft'] || keys['ShiftRight']) && !player.flying ? EYE - 0.3 : EYE;
+      camera.position.set(player.x, player.y + currentEye, player.z);
+      camera.rotation.y = yaw; camera.rotation.x = pitch;
+    }
+
+    const hitBlock = raycastBlock();
+    if (hitBlock) { highlight.visible = true; highlight.position.set(hitBlock.x + 0.5, hitBlock.y + 0.5, hitBlock.z + 0.5); }
+    else highlight.visible = false;
+
+    spawnTimer += dt;
+    if (spawnTimer > 2) {
+      spawnTimer = 0;
+      if (currentWorldData.mode === 'survival') {
+        if (Math.random() < 0.6) spawnMob('zombie');
+        if (Math.random() < 0.4) spawnMob('pig');
+      }
+    }
+    updateMobs(dt);
+
+    if (currentWorldData.worldType !== 'flat') {
+      grassTickTimer += dt;
+      if (grassTickTimer > 2) {
+        grassTickTimer = 0;
+        for (let i = 0; i < 5; i++) {
+          const rx = Math.floor(player.x + (Math.random() * 32 - 16));
+          const rz = Math.floor(player.z + (Math.random() * 32 - 16));
+          for (let ry = H - 2; ry > 0; ry--) {
+            if (getBlock(rx, ry, rz) === 2 && getBlock(rx, ry+1, rz) === 0) {
+              let hasGrass = false;
+              for (let dx = -3; dx <= 3; dx++) {
+                for (let dz = -3; dz <= 3; dz++) {
+                  if (getBlock(rx+dx, ry, rz+dz) === 1) { hasGrass = true; break; }
+                }
+                if (hasGrass) break;
+              }
+              if (hasGrass && getLight(rx, ry+1, rz) >= 9) {
+                setBlock(rx, ry, rz, 1, true);
+                markAreaDirty(rx, rz);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (showDebug && playing) {
+    debugTimer += dt;
+    if (debugTimer >= 0.25) {
+      debugTimer = 0;
+      const fps = Math.round(1 / (dt || 1));
+      const facing = Math.abs(yaw) < Math.PI/4 || Math.abs(yaw) > 3*Math.PI/4 ? (yaw > 0 ? 'Восток' : 'Запад') : (yaw > 0 ? 'Север' : 'Юг');
+
+      let hit = raycastBlock();
+      let lightStr = '—';
+      let blockStr = '—';
+      if (hit) {
+        lightStr = `${getLight(hit.x, hit.y, hit.z)}`;
+        const b = getBlock(hit.x, hit.y, hit.z);
+        blockStr = BLOCKS[b] ? BLOCKS[b].name : 'Unknown';
+      }
+
+      const pcx = Math.floor(player.x / CHUNK);
+      const pcz = Math.floor(player.z / CHUNK);
+      const loaded = chunkMeshes.filter(m => m !== null).length;
+
+      document.getElementById('debug-panel').textContent =
+        `FPS: ${fps}\n` +
+        `XYZ: ${player.x.toFixed(2)} / ${player.y.toFixed(2)} / ${player.z.toFixed(2)}\n` +
+        `Facing: ${facing}\n` +
+        `Light: ${lightStr}\n` +
+        `Chunk: ${pcx}, ${pcz} (Loaded: ${loaded})\n` +
+        `Block: ${blockStr}\n` +
+        `Biome: —`;
+    }
+  }
+
+  renderer.render(scene, camera);
+}
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+
+initDB().then(() => { showScreen('screen-main'); animate(); });
+</script>
+</body>
+</html>
